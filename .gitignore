@@ -1,0 +1,20 @@
+# Unreal generated folders
+Binaries/
+Intermediate/
+Saved/
+DerivedDataCache/
+
+# Plugin build output
+Plugins/**/Binaries/
+Plugins/**/Intermediate/
+
+# Visual Studio / Rider (regenerate via "Generate Visual Studio project files")
+.vs/
+.idea/
+*.sln
+*.slnx
+*.VC.db
+*.VC.opendb
+*.suo
+*.sdf
+*.opensdf
