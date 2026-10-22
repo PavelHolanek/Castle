@@ -20,6 +20,9 @@ namespace Castle::Core
 	/** Angles (radians) and dimensionless values below this are treated as zero. */
 	inline constexpr double AngleTolerance = 1e-9;
 
+	constexpr double DegreesToRadians(double Degrees) { return Degrees * Pi / 180.0; }
+	constexpr double RadiansToDegrees(double Radians) { return Radians * 180.0 / Pi; }
+
 	struct Vec2
 	{
 		double X = 0.0;

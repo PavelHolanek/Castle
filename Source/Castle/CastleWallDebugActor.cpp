@@ -1,5 +1,7 @@
 #include "CastleWallDebugActor.h"
 
+#include "CastleCore/Junction.h"
+#include "CastleCore/WallLimits.h"
 #include "CastleCore/WallNetwork.h"
 #include "CastleCore/WallOutline.h"
 #include "Components/BillboardComponent.h"
@@ -26,6 +28,14 @@ namespace
 		Wall.WidthLeft = 0.5f * Width;
 		Wall.WidthRight = 0.5f * Width;
 		Wall.Bulge = Bulge;
+		return Wall;
+	}
+
+	FCastleDebugWall MakeAsymmetricDebugWall(int32 NodeA, int32 NodeB, float WidthLeft, float WidthRight)
+	{
+		FCastleDebugWall Wall = MakeDebugWall(NodeA, NodeB, 0.f);
+		Wall.WidthLeft = WidthLeft;
+		Wall.WidthRight = WidthRight;
 		return Wall;
 	}
 }
@@ -60,6 +70,53 @@ ACastleWallDebugActor::ACastleWallDebugActor()
 		// An arc.
 		FVector(1500.0, -300.0, 0.0),
 		FVector(1500.0, 1100.0, 0.0),
+		// Three walls of different widths meeting at 125, 105 and 130 degrees; one of them ends at the node.
+		FVector(3000.0, 0.0, 0.0),
+		FVector(3705.0, 257.0, 0.0),
+		FVector(2427.0, 402.0, 0.0),
+		FVector(2726.0, -752.0, 0.0),
+		// Two collinear walls of different lengths.
+		FVector(2500.0, 1500.0, 0.0),
+		FVector(2900.0, 1500.0, 0.0),
+		FVector(3900.0, 1500.0, 0.0),
+		// Two collinear walls of different widths.
+		FVector(2500.0, 2300.0, 0.0),
+		FVector(3100.0, 2300.0, 0.0),
+		FVector(3900.0, 2300.0, 0.0),
+		// Two walls at an acute angle of 60 degrees.
+		FVector(4550.0, 221.0, 0.0),
+		FVector(5000.0, 1000.0, 0.0),
+		FVector(5450.0, 221.0, 0.0),
+		// Four walls of different widths at right angles (X); one of them ends at the node.
+		FVector(6800.0, 0.0, 0.0),
+		FVector(7600.0, 0.0, 0.0),
+		FVector(6800.0, 800.0, 0.0),
+		FVector(6000.0, 0.0, 0.0),
+		FVector(6800.0, -800.0, 0.0),
+		// Two walls at 40 degrees, each with the reference line off center.
+		FVector(6492.0, 1454.0, 0.0),
+		FVector(6800.0, 2300.0, 0.0),
+		FVector(7108.0, 1454.0, 0.0),
+		// A wide and a thin wall at 135 degrees: the thin one's side passes behind the wide one's end.
+		FVector(100.0, 4000.0, 0.0),
+		FVector(1000.0, 4000.0, 0.0),
+		FVector(1636.0, 4636.0, 0.0),
+		// Different widths at 110 degrees: the sides still meet on the wide wall.
+		FVector(2100.0, 4000.0, 0.0),
+		FVector(3000.0, 4000.0, 0.0),
+		FVector(3308.0, 4846.0, 0.0),
+		// The same widths at 160 degrees: the step is back, and longer.
+		FVector(4100.0, 4000.0, 0.0),
+		FVector(5000.0, 4000.0, 0.0),
+		FVector(5846.0, 4308.0, 0.0),
+		// The same widths at 170 degrees: the extension would be too long and gets beveled.
+		FVector(100.0, 6000.0, 0.0),
+		FVector(1000.0, 6000.0, 0.0),
+		FVector(1886.3, 6156.3, 0.0),
+		// A thin wall too short to reach: the extension ends at the middle of its side.
+		FVector(2100.0, 6000.0, 0.0),
+		FVector(3000.0, 6000.0, 0.0),
+		FVector(3075.0, 6129.9, 0.0),
 	};
 
 	Walls = {
@@ -69,6 +126,31 @@ ACastleWallDebugActor::ACastleWallDebugActor()
 		MakeDebugWall(4, 5, 300.f),
 		MakeDebugWall(4, 6, 120.f),
 		MakeDebugWall(7, 8, 200.f, 0.5f),
+		MakeDebugWall(9, 10, 200.f),
+		MakeDebugWall(9, 11, 160.f),
+		MakeDebugWall(12, 9, 240.f),
+		MakeDebugWall(13, 14, 200.f),
+		MakeDebugWall(14, 15, 200.f),
+		MakeDebugWall(16, 17, 300.f),
+		MakeDebugWall(17, 18, 160.f),
+		MakeDebugWall(19, 20, 200.f),
+		MakeDebugWall(20, 21, 200.f),
+		MakeDebugWall(22, 23, 200.f),
+		MakeDebugWall(24, 22, 300.f),
+		MakeDebugWall(22, 25, 200.f),
+		MakeDebugWall(22, 26, 120.f),
+		MakeAsymmetricDebugWall(27, 28, 60.f, 240.f),
+		MakeAsymmetricDebugWall(28, 29, 200.f, 40.f),
+		MakeDebugWall(30, 31, 400.f),
+		MakeDebugWall(31, 32, 80.f),
+		MakeDebugWall(33, 34, 300.f),
+		MakeDebugWall(34, 35, 160.f),
+		MakeDebugWall(36, 37, 300.f),
+		MakeDebugWall(37, 38, 160.f),
+		MakeDebugWall(39, 40, 300.f),
+		MakeDebugWall(40, 41, 160.f),
+		MakeDebugWall(42, 43, 400.f),
+		MakeDebugWall(43, 44, 80.f),
 	};
 }
 
@@ -114,16 +196,36 @@ void ACastleWallDebugActor::Redraw()
 		}
 	};
 
+	const WallLimits Limits;
+	const FLinearColor ViolationColor(1.f, 0.f, 1.f);
+	const FLinearColor CornerColor(1.f, 0.5f, 0.f);
+	const auto AddViolations = [this](const TCHAR* Kind, int32 Index, const std::vector<ELimitViolation>& Violations)
+	{
+		if (Violations.empty())
+		{
+			return;
+		}
+		TArray<FString> Names;
+		for (const ELimitViolation Violation : Violations)
+		{
+			Names.Add(UTF8_TO_TCHAR(Castle::Core::ToString(Violation)));
+		}
+		LimitViolations.Add(FString::Printf(TEXT("%s %d: %s"), Kind, Index, *FString::Join(Names, TEXT(", "))));
+	};
+	LimitViolations.Reset();
+	JunctionCorners.Reset();
+
 	WallNetwork Network;
 	TArray<NodeId> NodeIds;
 	for (const FVector& Position : Nodes)
 	{
 		NodeIds.Add(Network.AddNode(ToCore(Position)));
-		Lines->DrawPoint(ActorTransform.TransformPosition(FVector(Position.X, Position.Y, DrawHeight)), FLinearColor::Green, NodeSize, DepthPriority);
 	}
 
-	for (const FCastleDebugWall& DebugWall : Walls)
+	TMap<uint32, int32> WallIndexById;
+	for (int32 WallIndex = 0; WallIndex < Walls.Num(); ++WallIndex)
 	{
+		const FCastleDebugWall& DebugWall = Walls[WallIndex];
 		if (!NodeIds.IsValidIndex(DebugWall.NodeA) || !NodeIds.IsValidIndex(DebugWall.NodeB))
 		{
 			continue;
@@ -135,8 +237,12 @@ void ACastleWallDebugActor::Redraw()
 		{
 			continue;
 		}
+		WallIndexById.Add(Id.Value, WallIndex);
 
-		AddCurve(Outline->Reference, FLinearColor::Black);
+		const std::vector<ELimitViolation> Violations = CheckWall(Network, Id, Limits);
+		AddViolations(TEXT("Wall"), WallIndex, Violations);
+
+		AddCurve(Outline->Reference, Violations.empty() ? FLinearColor::Black : ViolationColor);
 		if (Outline->Left)
 		{
 			AddCurve(*Outline->Left, FLinearColor::Red);
@@ -147,6 +253,52 @@ void ACastleWallDebugActor::Redraw()
 		}
 		AddCurve(Outline->StartCap, FLinearColor::Blue);
 		AddCurve(Outline->EndCap, FLinearColor::Blue);
+	}
+
+	// Joint angles are known only once all walls are in.
+	for (int32 NodeIndex = 0; NodeIndex < NodeIds.Num(); ++NodeIndex)
+	{
+		const std::vector<ELimitViolation> Violations = CheckNode(Network, NodeIds[NodeIndex], Limits);
+		AddViolations(TEXT("Node"), NodeIndex, Violations);
+
+		const FVector& Position = Nodes[NodeIndex];
+		Lines->DrawPoint(ActorTransform.TransformPosition(FVector(Position.X, Position.Y, DrawHeight)),
+			Violations.empty() ? FLinearColor::Green : ViolationColor, NodeSize, DepthPriority);
+
+		const std::optional<Junction> NodeJunction = BuildJunction(Network, NodeIds[NodeIndex], JunctionSettings{.MaxExtensionFactor = MaxExtensionFactor});
+		if (!NodeJunction)
+		{
+			continue;
+		}
+		for (size_t GapIndex = 0; GapIndex < NodeJunction->Gaps.size(); ++GapIndex)
+		{
+			const JunctionGap& Gap = NodeJunction->Gaps[GapIndex];
+			if (!Gap.Corner)
+			{
+				continue;
+			}
+
+			const FVector Corner = ToLocal(*Gap.Corner, DrawHeight);
+			Lines->DrawPoint(ActorTransform.TransformPosition(Corner), CornerColor, NodeSize, DepthPriority);
+
+			const WallId First = NodeJunction->Walls[GapIndex].Id;
+			const WallId Second = NodeJunction->Walls[(GapIndex + 1) % NodeJunction->Walls.size()].Id;
+			FString Description = FString::Printf(TEXT("Node %d, walls %d -> %d, %.1f deg: (%.1f, %.1f)"),
+				NodeIndex, WallIndexById.FindRef(First.Value), WallIndexById.FindRef(Second.Value),
+				FMath::RadiansToDegrees(Gap.Angle), Corner.X, Corner.Y);
+
+			if (Gap.Extension)
+			{
+				AddCurve(WallCurve::MakeLine(Gap.Extension->Start, *Gap.Corner), CornerColor);
+				const TCHAR* Shape = Gap.Extension->Shape == EExtensionShape::Straight ? TEXT("straight")
+					: Gap.Extension->Shape == EExtensionShape::Beveled ? TEXT("beveled")
+					: TEXT("to side middle");
+				Description += FString::Printf(TEXT(", wall %d extended by %.1f (%s)"),
+					WallIndexById.FindRef(NodeJunction->Walls[Gap.Extension->WallIndex].Id.Value),
+					Castle::Core::Distance(Gap.Extension->Start, *Gap.Corner), Shape);
+			}
+			JunctionCorners.Add(MoveTemp(Description));
+		}
 	}
 
 	Lines->DrawLines(Batch);

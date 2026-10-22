@@ -40,6 +40,10 @@ struct FCastleDebugWall
  * Debug view of the wall model. Draws each wall's reference line (black), both sides (red) and the
  * end caps (blue) as they are before junctions get resolved. Select the actor to drag its nodes in the
  * level viewport; the lines redraw on every change.
+ *
+ * Walls and nodes outside the default WallLimits are drawn in magenta and listed in LimitViolations.
+ * Junction corners found so far, and the side extensions leading to them, are drawn in orange and listed
+ * in JunctionCorners.
  */
 UCLASS()
 class CASTLE_API ACastleWallDebugActor : public AActor
@@ -70,9 +74,24 @@ protected:
 	UPROPERTY(EditAnywhere, Category = "Walls|Drawing", meta = (ClampMin = "0"))
 	float NodeSize = 12.f;
 
+	/** Longest a side extension at a junction may get, as a multiple of the wider wall's width on that side. */
+	UPROPERTY(EditAnywhere, Category = "Walls|Junctions", meta = (ClampMin = "0"))
+	float MaxExtensionFactor = 2.f;
+
 	/** Height above the actor at which the lines are drawn. */
 	UPROPERTY(EditAnywhere, Category = "Walls|Drawing", meta = (Units = "cm"))
 	float DrawHeight = 5.f;
+
+	/** Limits broken by the walls and nodes above, by index. Refreshed on every redraw. */
+	UPROPERTY(VisibleAnywhere, Transient, Category = "Walls")
+	TArray<FString> LimitViolations;
+
+	/**
+	 * Corners where the sides of two neighbouring walls meet, going counterclockwise around each node
+	 * (seen from above). Positions are relative to the actor, like Nodes. Refreshed on every redraw.
+	 */
+	UPROPERTY(VisibleAnywhere, Transient, Category = "Walls")
+	TArray<FString> JunctionCorners;
 
 private:
 	void Redraw();

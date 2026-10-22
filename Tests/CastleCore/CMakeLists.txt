@@ -37,7 +37,9 @@ else()
 endif()
 
 add_executable(CastleCoreTests
+	JunctionTests.cpp
 	WallCurveTests.cpp
+	WallLimitsTests.cpp
 	WallNetworkTests.cpp
 	WallOutlineTests.cpp)
 target_link_libraries(CastleCoreTests PRIVATE CastleCore GTest::gtest_main)
