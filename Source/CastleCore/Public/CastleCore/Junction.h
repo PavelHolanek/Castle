@@ -39,32 +39,34 @@ namespace Castle::Core
 		bool bIsArc = false;
 	};
 
-	enum class EExtensionShape
+	enum class EGapShape
 	{
-		/** Continues the wider wall's side in a straight line to where it meets the thinner wall's side. */
-		Straight,
+		/** Not resolved yet: arcs, or the free end of a single wall. */
+		Unresolved,
 
-		/** The straight line would be too long (or never meet, for walls in line), so it turns towards the
-		 * thinner wall's side and reaches it at the maximum length. */
-		Beveled,
+		/** The sides meet in a single point: they cross, or continue each other for walls in line. */
+		Corner,
 
-		/** Ends at the middle of the thinner wall's side, the farthest it may reach along a short wall. */
-		ToSideMiddle,
-	};
+		/**
+		 * The wider wall's corner sticks out past the thinner wall's side (a much thinner wall at an angle around
+		 * 180 degrees). The wider wall's side continues past the node in a straight line to the thinner wall's side.
+		 */
+		StraightExtension,
 
-	/**
-	 * Where a much thinner wall's side passes the wider wall's side behind the node (an obtuse angle, or walls
-	 * in line), the wider wall's side is continued past the node to the thinner wall's side, smoothing out the step.
-	 */
-	struct SideExtension
-	{
-		/** Index into Junction::Walls of the wider wall, whose side is extended. */
-		size_t WallIndex = 0;
+		/**
+		 * As above, but the straight line would be too long, or never meet the thinner side, so a line of the
+		 * maximum extension length joins the wider wall's corner to the thinner wall's side.
+		 */
+		BeveledExtension,
 
-		/** Where the wider wall's raw side ends at the node. The extension runs from here to the gap's Corner. */
-		Vec2 Start;
+		/** The extension ends at the middle of the thinner wall's side, the farthest it may reach along a short wall. */
+		ExtensionToSideMiddle,
 
-		EExtensionShape Shape = EExtensionShape::Straight;
+		/** Outer side of a bend with a sharp corner: both sides are extended until they meet. */
+		SharpOuterCorner,
+
+		/** Outer side of a bend with a beveled corner: the ends of both sides are joined directly. */
+		BeveledOuterCorner,
 	};
 
 	/**
@@ -77,14 +79,14 @@ namespace Castle::Core
 		/** Angle swept from the first wall to the second, in [0, 2 Pi]. 2 Pi when only one wall meets at the node. */
 		double Angle = 0.0;
 
-		/**
-		 * Where the outline passes from one side facing the gap to the other: where the sides intersect, or
-		 * where an Extension reaches the thinner wall's side.
-		 * So far computed only for straight walls meeting at up to 180 degrees.
-		 */
-		std::optional<Vec2> Corner;
+		EGapShape Shape = EGapShape::Unresolved;
 
-		std::optional<SideExtension> Extension;
+		/**
+		 * How the outline gets from one side facing the gap to the other: the first wall's side runs up to
+		 * Path.front(), straight lines join consecutive points, and the second wall's side continues from
+		 * Path.back(). A single point where the sides simply meet. Empty while Unresolved.
+		 */
+		std::vector<Vec2> Path;
 	};
 
 	struct Junction

@@ -79,6 +79,17 @@ TEST(WallNetwork, MovingNodeChangesReferenceCurve)
 	EXPECT_FALSE(Network.MoveNode(NodeId{}, {1.0, 1.0}));
 }
 
+TEST(WallNetwork, CornerStyleIsSharpUnlessSet)
+{
+	WallNetwork Network;
+	const NodeId A = Network.AddNode({0.0, 0.0});
+	EXPECT_EQ(Network.FindNode(A)->CornerStyle, ECornerStyle::Sharp);
+
+	ASSERT_TRUE(Network.SetCornerStyle(A, ECornerStyle::Beveled));
+	EXPECT_EQ(Network.FindNode(A)->CornerStyle, ECornerStyle::Beveled);
+	EXPECT_FALSE(Network.SetCornerStyle(NodeId{}, ECornerStyle::Beveled));
+}
+
 TEST(WallNetwork, RemoveWallDetachesItFromNodes)
 {
 	WallNetwork Network;

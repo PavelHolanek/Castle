@@ -5,7 +5,7 @@ namespace Castle::Core
 	NodeId WallNetwork::AddNode(Vec2 Position)
 	{
 		const NodeId Id{static_cast<uint32_t>(Nodes.size())};
-		Nodes.push_back(Node{Position, {}});
+		Nodes.push_back(Node{.Position = Position});
 		++NodeCount;
 		return Id;
 	}
@@ -40,6 +40,17 @@ namespace Castle::Core
 			return false;
 		}
 		Found->Position = Position;
+		return true;
+	}
+
+	bool WallNetwork::SetCornerStyle(NodeId Id, ECornerStyle Style)
+	{
+		Node* Found = FindNodeMutable(Id);
+		if (!Found)
+		{
+			return false;
+		}
+		Found->CornerStyle = Style;
 		return true;
 	}
 

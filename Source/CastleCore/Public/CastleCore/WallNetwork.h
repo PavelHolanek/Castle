@@ -28,12 +28,25 @@ namespace Castle::Core
 	using NodeId = ElementId<struct NodeTag>;
 	using WallId = ElementId<struct WallTag>;
 
+	/** How the outer side of a bend is closed where walls meet at a node. */
+	enum class ECornerStyle
+	{
+		/** The sides are extended until they meet in a point. */
+		Sharp,
+
+		/** The ends of the sides are joined directly. */
+		Beveled,
+	};
+
 	struct Node
 	{
 		Vec2 Position;
 
 		/** Walls that start or end here, in the order they were attached. */
 		std::vector<WallId> Walls;
+
+		/** Applies to at most one gap between the walls here: the one over 180 degrees. */
+		ECornerStyle CornerStyle = ECornerStyle::Sharp;
 	};
 
 	/**
@@ -67,6 +80,7 @@ namespace Castle::Core
 		CASTLECORE_API WallId AddWall(NodeId NodeA, NodeId NodeB, double WidthLeft, double WidthRight, double Bulge = 0.0);
 
 		CASTLECORE_API bool MoveNode(NodeId Id, Vec2 Position);
+		CASTLECORE_API bool SetCornerStyle(NodeId Id, ECornerStyle Style);
 		CASTLECORE_API bool RemoveWall(WallId Id);
 
 		/** Removes the node together with every wall attached to it. */

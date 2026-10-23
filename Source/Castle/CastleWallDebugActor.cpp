@@ -38,6 +38,22 @@ namespace
 		Wall.WidthRight = WidthRight;
 		return Wall;
 	}
+
+	const TCHAR* GetShapeName(Castle::Core::EGapShape Shape)
+	{
+		using Castle::Core::EGapShape;
+		switch (Shape)
+		{
+		case EGapShape::Unresolved: return TEXT("unresolved");
+		case EGapShape::Corner: return TEXT("corner");
+		case EGapShape::StraightExtension: return TEXT("straight extension");
+		case EGapShape::BeveledExtension: return TEXT("beveled extension");
+		case EGapShape::ExtensionToSideMiddle: return TEXT("extension to side middle");
+		case EGapShape::SharpOuterCorner: return TEXT("sharp outer corner");
+		case EGapShape::BeveledOuterCorner: return TEXT("beveled outer corner");
+		}
+		return TEXT("unknown");
+	}
 }
 
 ACastleWallDebugActor::ACastleWallDebugActor()
@@ -117,6 +133,19 @@ ACastleWallDebugActor::ACastleWallDebugActor()
 		FVector(2100.0, 6000.0, 0.0),
 		FVector(3000.0, 6000.0, 0.0),
 		FVector(3075.0, 6129.9, 0.0),
+		// Outer side at 225 degrees with widths 200 and 141.4 (cos 45 = 141.4 / 200): the wider wall's corner
+		// lies on the thinner wall's side line. The inner sides are equally wide.
+		FVector(100.0, 8000.0, 0.0),
+		FVector(1000.0, 8000.0, 0.0),
+		FVector(1636.4, 8636.4, 0.0),
+		// An L of different widths with a sharp outer corner.
+		FVector(2100.0, 8000.0, 0.0),
+		FVector(3000.0, 8000.0, 0.0),
+		FVector(3000.0, 8900.0, 0.0),
+		// The same L with a beveled outer corner (see BeveledNodes).
+		FVector(4100.0, 8000.0, 0.0),
+		FVector(5000.0, 8000.0, 0.0),
+		FVector(5000.0, 8900.0, 0.0),
 	};
 
 	Walls = {
@@ -151,7 +180,15 @@ ACastleWallDebugActor::ACastleWallDebugActor()
 		MakeDebugWall(40, 41, 160.f),
 		MakeDebugWall(42, 43, 400.f),
 		MakeDebugWall(43, 44, 80.f),
+		MakeAsymmetricDebugWall(45, 46, 200.f, 100.f),
+		MakeAsymmetricDebugWall(46, 47, 141.42136f, 100.f),
+		MakeDebugWall(48, 49, 300.f),
+		MakeDebugWall(49, 50, 120.f),
+		MakeDebugWall(51, 52, 300.f),
+		MakeDebugWall(52, 53, 120.f),
 	};
+
+	BeveledNodes = {52};
 }
 
 void ACastleWallDebugActor::OnConstruction(const FTransform& Transform)
@@ -221,6 +258,13 @@ void ACastleWallDebugActor::Redraw()
 	{
 		NodeIds.Add(Network.AddNode(ToCore(Position)));
 	}
+	for (const int32 NodeIndex : BeveledNodes)
+	{
+		if (NodeIds.IsValidIndex(NodeIndex))
+		{
+			Network.SetCornerStyle(NodeIds[NodeIndex], ECornerStyle::Beveled);
+		}
+	}
 
 	TMap<uint32, int32> WallIndexById;
 	for (int32 WallIndex = 0; WallIndex < Walls.Num(); ++WallIndex)
@@ -273,29 +317,31 @@ void ACastleWallDebugActor::Redraw()
 		for (size_t GapIndex = 0; GapIndex < NodeJunction->Gaps.size(); ++GapIndex)
 		{
 			const JunctionGap& Gap = NodeJunction->Gaps[GapIndex];
-			if (!Gap.Corner)
+			if (Gap.Path.empty())
 			{
 				continue;
 			}
 
-			const FVector Corner = ToLocal(*Gap.Corner, DrawHeight);
-			Lines->DrawPoint(ActorTransform.TransformPosition(Corner), CornerColor, NodeSize, DepthPriority);
+			TArray<FString> Points;
+			for (size_t PointIndex = 0; PointIndex < Gap.Path.size(); ++PointIndex)
+			{
+				const FVector Point = ToLocal(Gap.Path[PointIndex], DrawHeight);
+				Lines->DrawPoint(ActorTransform.TransformPosition(Point), CornerColor, NodeSize, DepthPriority);
+				Points.Add(FString::Printf(TEXT("(%.1f, %.1f)"), Point.X, Point.Y));
+				if (PointIndex > 0)
+				{
+					AddCurve(WallCurve::MakeLine(Gap.Path[PointIndex - 1], Gap.Path[PointIndex]), CornerColor);
+				}
+			}
 
 			const WallId First = NodeJunction->Walls[GapIndex].Id;
 			const WallId Second = NodeJunction->Walls[(GapIndex + 1) % NodeJunction->Walls.size()].Id;
-			FString Description = FString::Printf(TEXT("Node %d, walls %d -> %d, %.1f deg: (%.1f, %.1f)"),
+			FString Description = FString::Printf(TEXT("Node %d, walls %d -> %d, %.1f deg, %s: %s"),
 				NodeIndex, WallIndexById.FindRef(First.Value), WallIndexById.FindRef(Second.Value),
-				FMath::RadiansToDegrees(Gap.Angle), Corner.X, Corner.Y);
-
-			if (Gap.Extension)
+				FMath::RadiansToDegrees(Gap.Angle), GetShapeName(Gap.Shape), *FString::Join(Points, TEXT(" -> ")));
+			if (Gap.Path.size() == 2)
 			{
-				AddCurve(WallCurve::MakeLine(Gap.Extension->Start, *Gap.Corner), CornerColor);
-				const TCHAR* Shape = Gap.Extension->Shape == EExtensionShape::Straight ? TEXT("straight")
-					: Gap.Extension->Shape == EExtensionShape::Beveled ? TEXT("beveled")
-					: TEXT("to side middle");
-				Description += FString::Printf(TEXT(", wall %d extended by %.1f (%s)"),
-					WallIndexById.FindRef(NodeJunction->Walls[Gap.Extension->WallIndex].Id.Value),
-					Castle::Core::Distance(Gap.Extension->Start, *Gap.Corner), Shape);
+				Description += FString::Printf(TEXT(", length %.1f"), Castle::Core::Distance(Gap.Path[0], Gap.Path[1]));
 			}
 			JunctionCorners.Add(MoveTemp(Description));
 		}

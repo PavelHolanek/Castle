@@ -16,6 +16,17 @@ namespace
 		EXPECT_NEAR(Actual.Y, Expected.Y, Tolerance);
 	}
 
+	void ExpectPath(const JunctionGap& Gap, EGapShape Shape, const std::vector<Vec2>& Path)
+	{
+		EXPECT_EQ(Gap.Shape, Shape);
+		ASSERT_EQ(Gap.Path.size(), Path.size());
+		for (size_t Index = 0; Index < Path.size(); ++Index)
+		{
+			SCOPED_TRACE(Index);
+			ExpectNear(Gap.Path[Index], Path[Index]);
+		}
+	}
+
 	Vec2 Direction(double Degrees)
 	{
 		return PointOnCircle({0.0, 0.0}, 1.0, DegreesToRadians(Degrees));
@@ -45,11 +56,17 @@ namespace
 		}
 	};
 
+	/** Distance of Point from the line of the clockwise side of a straight wall leaving the origin. */
+	double DistanceFromClockwiseSide(Vec2 Point, double Degrees, double Width)
+	{
+		return Cross(Direction(Degrees), Point - (-PerpLeft(Direction(Degrees)) * Width));
+	}
+
 	/** Checks that Point lies on the clockwise side of a straight wall leaving the origin, beyond the node. */
 	void ExpectOnClockwiseSide(Vec2 Point, double Degrees, double Width)
 	{
 		const Vec2 SideStart = -PerpLeft(Direction(Degrees)) * Width;
-		EXPECT_NEAR(Cross(Direction(Degrees), Point - SideStart), 0.0, 1e-6);
+		EXPECT_NEAR(DistanceFromClockwiseSide(Point, Degrees, Width), 0.0, 1e-6);
 		EXPECT_GT(Dot(Direction(Degrees), Point - SideStart), 0.0);
 	}
 }
@@ -61,7 +78,7 @@ TEST(Junction, UnknownNodeHasNoJunction)
 	EXPECT_FALSE(BuildJunction(Network, NodeId{}));
 }
 
-TEST(Junction, SingleWallLeavesFullTurn)
+TEST(Junction, SingleWallLeavesFullTurnUnresolved)
 {
 	Star Joint;
 	Joint.AddOutgoing(30.0, 100.0, 100.0);
@@ -69,7 +86,8 @@ TEST(Junction, SingleWallLeavesFullTurn)
 	const Junction Result = Joint.Build();
 	ASSERT_EQ(Result.Gaps.size(), 1u);
 	EXPECT_NEAR(Result.Gaps[0].Angle, 2.0 * Pi, Tolerance);
-	EXPECT_FALSE(Result.Gaps[0].Corner);
+	EXPECT_EQ(Result.Gaps[0].Shape, EGapShape::Unresolved);
+	EXPECT_TRUE(Result.Gaps[0].Path.empty());
 }
 
 TEST(Junction, WallsAreSortedCounterclockwise)
@@ -104,34 +122,27 @@ TEST(Junction, WallEndingAtNodeIsSeenBackwards)
 	EXPECT_EQ(Seen.WidthClockwise, 10.0);
 }
 
+// Up to 90 degrees
+
 TEST(Junction, AcuteCornerOfEqualWalls)
 {
 	Star Joint;
 	Joint.AddOutgoing(0.0, 100.0, 100.0);
 	Joint.AddOutgoing(60.0, 100.0, 100.0);
 
-	const Junction Result = Joint.Build();
-	ASSERT_TRUE(Result.Gaps[0].Corner);
-
 	// On the bisector, at half the width divided by sin(30 degrees).
-	ExpectNear(*Result.Gaps[0].Corner, Direction(30.0) * 200.0);
-
-	// The other side of the joint (300 degrees) is not handled yet.
-	EXPECT_FALSE(Result.Gaps[1].Corner);
+	ExpectPath(Joint.Build().Gaps[0], EGapShape::Corner, {Direction(30.0) * 200.0});
 }
 
 TEST(Junction, AcuteCornerUsesTheSidesFacingTheGap)
 {
 	// Only the first wall's left side and the second wall's right side face the 45 degree gap.
+	// 10 from the first wall and 20 from the second: x = (20 + 10 cos 45) / sin 45.
 	Star Joint;
 	Joint.AddOutgoing(0.0, 10.0, 90.0);
 	Joint.AddOutgoing(45.0, 70.0, 20.0);
 
-	const Junction Result = Joint.Build();
-	ASSERT_TRUE(Result.Gaps[0].Corner);
-
-	// 10 from the first wall and 20 from the second: x = (20 + 10 cos 45) / sin 45.
-	ExpectNear(*Result.Gaps[0].Corner, {20.0 * std::sqrt(2.0) + 10.0, 10.0});
+	ExpectPath(Joint.Build().Gaps[0], EGapShape::Corner, {{20.0 * std::sqrt(2.0) + 10.0, 10.0}});
 }
 
 TEST(Junction, AcuteCornerWithWallEndingAtNode)
@@ -141,9 +152,7 @@ TEST(Junction, AcuteCornerWithWallEndingAtNode)
 	Joint.AddOutgoing(0.0, 10.0, 90.0);
 	Joint.AddIncoming(45.0, 20.0, 70.0);
 
-	const Junction Result = Joint.Build();
-	ASSERT_TRUE(Result.Gaps[0].Corner);
-	ExpectNear(*Result.Gaps[0].Corner, {20.0 * std::sqrt(2.0) + 10.0, 10.0});
+	ExpectPath(Joint.Build().Gaps[0], EGapShape::Corner, {{20.0 * std::sqrt(2.0) + 10.0, 10.0}});
 }
 
 TEST(Junction, RightAngleCorner)
@@ -152,7 +161,7 @@ TEST(Junction, RightAngleCorner)
 	Joint.AddOutgoing(0.0, 30.0, 30.0);
 	Joint.AddOutgoing(90.0, 50.0, 50.0);
 
-	ExpectNear(*Joint.Build().Gaps[0].Corner, {50.0, 30.0});
+	ExpectPath(Joint.Build().Gaps[0], EGapShape::Corner, {{50.0, 30.0}});
 }
 
 TEST(Junction, TJunctionHasTwoRightCorners)
@@ -164,166 +173,12 @@ TEST(Junction, TJunctionHasTwoRightCorners)
 
 	const Junction Result = Joint.Build();
 	ASSERT_EQ(Result.Gaps.size(), 3u);
-	ExpectNear(*Result.Gaps[0].Corner, {60.0, 150.0});
-	ExpectNear(*Result.Gaps[1].Corner, {-60.0, 150.0});
-	EXPECT_NEAR(Result.Gaps[2].Angle, Pi, Tolerance);
+	ExpectPath(Result.Gaps[0], EGapShape::Corner, {{60.0, 150.0}});
+	ExpectPath(Result.Gaps[1], EGapShape::Corner, {{-60.0, 150.0}});
 
 	// The through wall's sides simply continue.
-	ExpectNear(*Result.Gaps[2].Corner, {0.0, -150.0});
-	EXPECT_FALSE(Result.Gaps[2].Extension);
-}
-
-TEST(Junction, ObtuseCornerOfEqualWalls)
-{
-	Star Joint;
-	Joint.AddOutgoing(0.0, 100.0, 100.0);
-	Joint.AddOutgoing(120.0, 100.0, 100.0);
-
-	const Junction Result = Joint.Build();
-	ASSERT_TRUE(Result.Gaps[0].Corner);
-	ExpectNear(*Result.Gaps[0].Corner, Direction(60.0) * (100.0 / std::sin(DegreesToRadians(60.0))));
-	EXPECT_FALSE(Result.Gaps[0].Extension);
-
-	// The 240 degree side is not handled yet.
-	EXPECT_FALSE(Result.Gaps[1].Corner);
-}
-
-TEST(Junction, ObtuseCornerOnWiderSide)
-{
-	// At 120 degrees the step appears below 100 * -cos(120) = 50; 80 is still enough.
-	Star Joint;
-	Joint.AddOutgoing(0.0, 100.0, 100.0);
-	Joint.AddOutgoing(120.0, 80.0, 80.0);
-
-	const JunctionGap Gap = Joint.Build().Gaps[0];
-	ASSERT_TRUE(Gap.Corner);
-	ExpectNear(*Gap.Corner, {(80.0 - 50.0) / std::sin(DegreesToRadians(120.0)), 100.0});
-	EXPECT_FALSE(Gap.Extension);
-}
-
-TEST(Junction, ObtuseCornerBehindWiderWallExtendsItsSide)
-{
-	Star Joint;
-	Joint.AddOutgoing(0.0, 100.0, 100.0);
-	Joint.AddOutgoing(120.0, 20.0, 20.0);
-
-	const JunctionGap Gap = Joint.Build().Gaps[0];
-	ASSERT_TRUE(Gap.Corner);
-	ExpectNear(*Gap.Corner, {(20.0 - 50.0) / std::sin(DegreesToRadians(120.0)), 100.0});
-
-	ASSERT_TRUE(Gap.Extension);
-	EXPECT_EQ(Gap.Extension->WallIndex, 0u);
-	EXPECT_EQ(Gap.Extension->Shape, EExtensionShape::Straight);
-	ExpectNear(Gap.Extension->Start, {0.0, 100.0});
-}
-
-TEST(Junction, LongExtensionIsBeveledToTwiceTheWiderWidth)
-{
-	// At 170 degrees the straight extension would be (150 * -cos(170) - 80) / sin(170), about 390.
-	Star Joint;
-	Joint.AddOutgoing(0.0, 150.0, 150.0);
-	Joint.AddOutgoing(170.0, 80.0, 80.0);
-
-	const JunctionGap Gap = Joint.Build().Gaps[0];
-	ASSERT_TRUE(Gap.Corner);
-	ASSERT_TRUE(Gap.Extension);
-	EXPECT_EQ(Gap.Extension->WallIndex, 0u);
-	EXPECT_EQ(Gap.Extension->Shape, EExtensionShape::Beveled);
-	ExpectNear(Gap.Extension->Start, {0.0, 150.0});
-	EXPECT_NEAR(Distance(Gap.Extension->Start, *Gap.Corner), 300.0, 1e-6);
-	ExpectOnClockwiseSide(*Gap.Corner, 170.0, 80.0);
-}
-
-TEST(Junction, MaxExtensionFactorIsAdjustable)
-{
-	Star Joint;
-	Joint.AddOutgoing(0.0, 150.0, 150.0);
-	Joint.AddOutgoing(170.0, 80.0, 80.0);
-
-	const JunctionGap Gap = Joint.Build(JunctionSettings{.MaxExtensionFactor = 1.0}).Gaps[0];
-	ASSERT_TRUE(Gap.Extension);
-	EXPECT_EQ(Gap.Extension->Shape, EExtensionShape::Beveled);
-	EXPECT_NEAR(Distance(Gap.Extension->Start, *Gap.Corner), 150.0, 1e-6);
-	ExpectOnClockwiseSide(*Gap.Corner, 170.0, 80.0);
-}
-
-TEST(Junction, WallsInLineWithDifferentWidthsAreBeveledOnBothSides)
-{
-	Star Joint;
-	Joint.AddOutgoing(0.0, 150.0, 150.0);
-	Joint.AddIncoming(180.0, 80.0, 80.0);
-
-	const Junction Result = Joint.Build();
-	ASSERT_EQ(Result.Gaps.size(), 2u);
-	const double Reach = std::sqrt(300.0 * 300.0 - 70.0 * 70.0);
-	for (size_t Index = 0; Index < 2; ++Index)
-	{
-		const JunctionGap& Gap = Result.Gaps[Index];
-		const double Side = Index == 0 ? 1.0 : -1.0;
-		SCOPED_TRACE(Index);
-
-		EXPECT_NEAR(Gap.Angle, Pi, Tolerance);
-		ASSERT_TRUE(Gap.Corner);
-		ASSERT_TRUE(Gap.Extension);
-		EXPECT_EQ(Result.Walls[Gap.Extension->WallIndex].DirectionAngle, 0.0);
-		EXPECT_EQ(Gap.Extension->Shape, EExtensionShape::Beveled);
-		ExpectNear(Gap.Extension->Start, {0.0, 150.0 * Side});
-		ExpectNear(*Gap.Corner, {-Reach, 80.0 * Side});
-	}
-}
-
-TEST(Junction, WallsInLineWithEqualWidthsNeedNoExtension)
-{
-	Star Joint;
-	Joint.AddOutgoing(0.0, 100.0, 100.0);
-	Joint.AddOutgoing(180.0, 100.0, 100.0);
-
-	const Junction Result = Joint.Build();
-	ASSERT_TRUE(Result.Gaps[0].Corner);
-	ExpectNear(*Result.Gaps[0].Corner, {0.0, 100.0});
-	EXPECT_FALSE(Result.Gaps[0].Extension);
-	ExpectNear(*Result.Gaps[1].Corner, {0.0, -100.0});
-	EXPECT_FALSE(Result.Gaps[1].Extension);
-}
-
-TEST(Junction, ExtensionStopsAtMiddleOfShortThinWall)
-{
-	// The straight extension would meet the thin side about 104 along it, past the middle of a 150 long wall.
-	Star Joint;
-	Joint.AddOutgoing(0.0, 100.0, 100.0);
-	Joint.AddOutgoing(120.0, 20.0, 20.0, 150.0);
-
-	const JunctionGap Gap = Joint.Build().Gaps[0];
-	ASSERT_TRUE(Gap.Extension);
-	EXPECT_EQ(Gap.Extension->Shape, EExtensionShape::ToSideMiddle);
-	ExpectNear(*Gap.Corner, -PerpLeft(Direction(120.0)) * 20.0 + Direction(120.0) * 75.0);
-}
-
-TEST(Junction, ObtuseCornerExtendsTheSecondWallWhenItIsWider)
-{
-	Star Joint;
-	Joint.AddOutgoing(0.0, 20.0, 20.0);
-	Joint.AddIncoming(120.0, 100.0, 100.0);
-
-	const JunctionGap Gap = Joint.Build().Gaps[0];
-	ASSERT_TRUE(Gap.Corner);
-	ExpectNear(*Gap.Corner, {(100.0 - 10.0) / std::sin(DegreesToRadians(120.0)), 20.0});
-
-	ASSERT_TRUE(Gap.Extension);
-	EXPECT_EQ(Gap.Extension->WallIndex, 1u);
-	ExpectNear(Gap.Extension->Start, Direction(30.0) * 100.0);
-}
-
-TEST(Junction, ObtuseCornerExactlyAtStepNeedsNoExtension)
-{
-	// 100 * -cos(120) = 50: the thinner side meets the wider one right at its end.
-	Star Joint;
-	Joint.AddOutgoing(0.0, 100.0, 100.0);
-	Joint.AddOutgoing(120.0, 50.0, 50.0);
-
-	const JunctionGap Gap = Joint.Build().Gaps[0];
-	ExpectNear(*Gap.Corner, {0.0, 100.0});
-	EXPECT_FALSE(Gap.Extension);
+	EXPECT_NEAR(Result.Gaps[2].Angle, Pi, Tolerance);
+	ExpectPath(Result.Gaps[2], EGapShape::Corner, {{0.0, -150.0}});
 }
 
 TEST(Junction, AcuteAndRightCornersNeverNeedExtension)
@@ -335,13 +190,220 @@ TEST(Junction, AcuteAndRightCornersNeverNeedExtension)
 		Joint.AddOutgoing(Degrees, 5.0, 5.0);
 		SCOPED_TRACE(Degrees);
 
-		const JunctionGap Gap = Joint.Build().Gaps[0];
-		EXPECT_TRUE(Gap.Corner);
-		EXPECT_FALSE(Gap.Extension);
+		EXPECT_EQ(Joint.Build().Gaps[0].Shape, EGapShape::Corner);
 	}
 }
 
-TEST(Junction, ArcsHaveNoCornerYet)
+// 90 to 180 degrees
+
+TEST(Junction, ObtuseCornerOfEqualWalls)
+{
+	Star Joint;
+	Joint.AddOutgoing(0.0, 100.0, 100.0);
+	Joint.AddOutgoing(120.0, 100.0, 100.0);
+
+	ExpectPath(Joint.Build().Gaps[0], EGapShape::Corner, {Direction(60.0) * (100.0 / std::sin(DegreesToRadians(60.0)))});
+}
+
+TEST(Junction, ObtuseCornerOnWiderSide)
+{
+	// At 120 degrees the step appears below 100 * -cos(120) = 50; 80 is still enough.
+	Star Joint;
+	Joint.AddOutgoing(0.0, 100.0, 100.0);
+	Joint.AddOutgoing(120.0, 80.0, 80.0);
+
+	ExpectPath(Joint.Build().Gaps[0], EGapShape::Corner, {{(80.0 - 50.0) / std::sin(DegreesToRadians(120.0)), 100.0}});
+}
+
+TEST(Junction, ObtuseCornerExactlyAtStepNeedsNoExtension)
+{
+	// 100 * -cos(120) = 50: the thinner side meets the wider one right at its end.
+	Star Joint;
+	Joint.AddOutgoing(0.0, 100.0, 100.0);
+	Joint.AddOutgoing(120.0, 50.0, 50.0);
+
+	ExpectPath(Joint.Build().Gaps[0], EGapShape::Corner, {{0.0, 100.0}});
+}
+
+TEST(Junction, ObtuseCornerBehindWiderWallExtendsItsSide)
+{
+	Star Joint;
+	Joint.AddOutgoing(0.0, 100.0, 100.0);
+	Joint.AddOutgoing(120.0, 20.0, 20.0);
+
+	ExpectPath(Joint.Build().Gaps[0], EGapShape::StraightExtension,
+		{{0.0, 100.0}, {(20.0 - 50.0) / std::sin(DegreesToRadians(120.0)), 100.0}});
+}
+
+TEST(Junction, ObtuseCornerExtendsTheSecondWallWhenItIsWider)
+{
+	Star Joint;
+	Joint.AddOutgoing(0.0, 20.0, 20.0);
+	Joint.AddIncoming(120.0, 100.0, 100.0);
+
+	ExpectPath(Joint.Build().Gaps[0], EGapShape::StraightExtension,
+		{{(100.0 - 10.0) / std::sin(DegreesToRadians(120.0)), 20.0}, Direction(30.0) * 100.0});
+}
+
+TEST(Junction, LongExtensionIsBeveledToTwiceTheWiderWidth)
+{
+	// At 170 degrees the straight extension would be (150 * -cos(170) - 80) / sin(170), about 390.
+	Star Joint;
+	Joint.AddOutgoing(0.0, 150.0, 150.0);
+	Joint.AddOutgoing(170.0, 80.0, 80.0);
+
+	const JunctionGap Gap = Joint.Build().Gaps[0];
+	EXPECT_EQ(Gap.Shape, EGapShape::BeveledExtension);
+	ASSERT_EQ(Gap.Path.size(), 2u);
+	ExpectNear(Gap.Path[0], {0.0, 150.0});
+	EXPECT_NEAR(Distance(Gap.Path[0], Gap.Path[1]), 300.0, 1e-6);
+	ExpectOnClockwiseSide(Gap.Path[1], 170.0, 80.0);
+}
+
+TEST(Junction, MaxExtensionFactorIsAdjustable)
+{
+	Star Joint;
+	Joint.AddOutgoing(0.0, 150.0, 150.0);
+	Joint.AddOutgoing(170.0, 80.0, 80.0);
+
+	const JunctionGap Gap = Joint.Build(JunctionSettings{.MaxExtensionFactor = 1.0}).Gaps[0];
+	EXPECT_EQ(Gap.Shape, EGapShape::BeveledExtension);
+	ASSERT_EQ(Gap.Path.size(), 2u);
+	EXPECT_NEAR(Distance(Gap.Path[0], Gap.Path[1]), 150.0, 1e-6);
+	ExpectOnClockwiseSide(Gap.Path[1], 170.0, 80.0);
+}
+
+TEST(Junction, ExtensionStopsAtMiddleOfShortThinWall)
+{
+	// The straight extension would meet the thin side about 104 along it, past the middle of a 150 long wall.
+	Star Joint;
+	Joint.AddOutgoing(0.0, 100.0, 100.0);
+	Joint.AddOutgoing(120.0, 20.0, 20.0, 150.0);
+
+	ExpectPath(Joint.Build().Gaps[0], EGapShape::ExtensionToSideMiddle,
+		{{0.0, 100.0}, -PerpLeft(Direction(120.0)) * 20.0 + Direction(120.0) * 75.0});
+}
+
+// 180 degrees
+
+TEST(Junction, WallsInLineWithEqualWidthsSimplyContinue)
+{
+	Star Joint;
+	Joint.AddOutgoing(0.0, 100.0, 100.0);
+	Joint.AddOutgoing(180.0, 100.0, 100.0);
+
+	const Junction Result = Joint.Build();
+	ExpectPath(Result.Gaps[0], EGapShape::Corner, {{0.0, 100.0}});
+	ExpectPath(Result.Gaps[1], EGapShape::Corner, {{0.0, -100.0}});
+}
+
+TEST(Junction, WallsInLineWithDifferentWidthsAreBeveledOnBothSides)
+{
+	Star Joint;
+	Joint.AddOutgoing(0.0, 150.0, 150.0);
+	Joint.AddIncoming(180.0, 80.0, 80.0);
+
+	const Junction Result = Joint.Build();
+	ASSERT_EQ(Result.Gaps.size(), 2u);
+	const double Reach = std::sqrt(300.0 * 300.0 - 70.0 * 70.0);
+	EXPECT_NEAR(Result.Gaps[0].Angle, Pi, Tolerance);
+	ExpectPath(Result.Gaps[0], EGapShape::BeveledExtension, {{0.0, 150.0}, {-Reach, 80.0}});
+	ExpectPath(Result.Gaps[1], EGapShape::BeveledExtension, {{-Reach, -80.0}, {0.0, -150.0}});
+}
+
+// Over 180 degrees
+
+TEST(Junction, StepOver180IsBeveledAsAt180)
+{
+	Star Joint;
+	Joint.AddOutgoing(0.0, 150.0, 150.0);
+	Joint.AddOutgoing(200.0, 80.0, 80.0);
+
+	const JunctionGap Gap = Joint.Build().Gaps[0];
+	EXPECT_NEAR(Gap.Angle, DegreesToRadians(200.0), Tolerance);
+	EXPECT_EQ(Gap.Shape, EGapShape::BeveledExtension);
+	ASSERT_EQ(Gap.Path.size(), 2u);
+	ExpectNear(Gap.Path[0], {0.0, 150.0});
+	EXPECT_NEAR(Distance(Gap.Path[0], Gap.Path[1]), 300.0, 1e-6);
+	ExpectOnClockwiseSide(Gap.Path[1], 200.0, 80.0);
+}
+
+TEST(Junction, StepOver180EndsWhereBevelLinesUpWithThinnerSide)
+{
+	// cos(Angle - 180) = 80 / 150 at about 237.8 degrees.
+	for (const auto& [Degrees, Shape] : {std::pair{235.0, EGapShape::BeveledExtension}, std::pair{240.0, EGapShape::SharpOuterCorner}})
+	{
+		Star Joint;
+		Joint.AddOutgoing(0.0, 150.0, 150.0);
+		Joint.AddOutgoing(Degrees, 80.0, 80.0);
+		SCOPED_TRACE(Degrees);
+
+		EXPECT_EQ(Joint.Build().Gaps[0].Shape, Shape);
+	}
+}
+
+TEST(Junction, AtCriticalAngleTheOutlineFollowsTheThinnerSide)
+{
+	// cos(225 - 180) = 141.42 / 200: the wider wall's corner lies on the thinner wall's side line.
+	// Whichever rule applies there, the whole connection runs along that line.
+	const double ThinWidth = 200.0 * std::cos(DegreesToRadians(45.0));
+	for (const ECornerStyle Style : {ECornerStyle::Sharp, ECornerStyle::Beveled})
+	{
+		Star Joint;
+		Joint.AddOutgoing(0.0, 200.0, 200.0);
+		Joint.AddOutgoing(225.0, ThinWidth, ThinWidth);
+		Joint.Network.SetCornerStyle(Joint.Center, Style);
+
+		const JunctionGap Gap = Joint.Build().Gaps[0];
+		ASSERT_FALSE(Gap.Path.empty());
+		ExpectNear(Gap.Path.front(), {0.0, 200.0});
+		for (const Vec2& Point : Gap.Path)
+		{
+			EXPECT_NEAR(DistanceFromClockwiseSide(Point, 225.0, ThinWidth), 0.0, 1e-6);
+		}
+	}
+}
+
+TEST(Junction, SharpOuterCornerOfL)
+{
+	Star Joint;
+	Joint.AddOutgoing(0.0, 150.0, 150.0);
+	Joint.AddOutgoing(270.0, 60.0, 60.0);
+
+	const Junction Result = Joint.Build();
+	ExpectPath(Result.Gaps[0], EGapShape::SharpOuterCorner, {{0.0, 150.0}, {-60.0, 150.0}, {-60.0, 0.0}});
+	ExpectPath(Result.Gaps[1], EGapShape::Corner, {{60.0, -150.0}});
+}
+
+TEST(Junction, BeveledOuterCornerOfL)
+{
+	Star Joint;
+	Joint.AddOutgoing(0.0, 150.0, 150.0);
+	Joint.AddOutgoing(270.0, 60.0, 60.0);
+	Joint.Network.SetCornerStyle(Joint.Center, ECornerStyle::Beveled);
+
+	const Junction Result = Joint.Build();
+	ExpectPath(Result.Gaps[0], EGapShape::BeveledOuterCorner, {{0.0, 150.0}, {-60.0, 0.0}});
+
+	// The style only applies over 180 degrees.
+	ExpectPath(Result.Gaps[1], EGapShape::Corner, {{60.0, -150.0}});
+}
+
+TEST(Junction, SharpOuterCornerOfEqualWallsLiesOnBisector)
+{
+	// Outside a 60 degree bend: half the width divided by sin(30 degrees), opposite the inner corner.
+	Star Joint;
+	Joint.AddOutgoing(0.0, 100.0, 100.0);
+	Joint.AddOutgoing(60.0, 100.0, 100.0);
+
+	const JunctionGap Gap = Joint.Build().Gaps[1];
+	EXPECT_NEAR(Gap.Angle, DegreesToRadians(300.0), Tolerance);
+	ExpectPath(Gap, EGapShape::SharpOuterCorner, {Direction(150.0) * 100.0, Direction(210.0) * 200.0, Direction(270.0) * 100.0});
+}
+
+// Not resolved yet
+
+TEST(Junction, ArcsAreNotResolvedYet)
 {
 	Star Joint;
 	Joint.AddOutgoing(0.0, 100.0, 100.0);
@@ -349,6 +411,6 @@ TEST(Junction, ArcsHaveNoCornerYet)
 
 	const Junction Result = Joint.Build();
 	ASSERT_EQ(Result.Gaps.size(), 2u);
-	EXPECT_FALSE(Result.Gaps[0].Corner);
-	EXPECT_FALSE(Result.Gaps[1].Corner);
+	EXPECT_EQ(Result.Gaps[0].Shape, EGapShape::Unresolved);
+	EXPECT_EQ(Result.Gaps[1].Shape, EGapShape::Unresolved);
 }

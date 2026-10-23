@@ -78,6 +78,10 @@ protected:
 	UPROPERTY(EditAnywhere, Category = "Walls|Junctions", meta = (ClampMin = "0"))
 	float MaxExtensionFactor = 2.f;
 
+	/** Nodes (by index) whose outer corner, the gap over 180 degrees, is beveled instead of sharp. */
+	UPROPERTY(EditAnywhere, Category = "Walls|Junctions")
+	TArray<int32> BeveledNodes;
+
 	/** Height above the actor at which the lines are drawn. */
 	UPROPERTY(EditAnywhere, Category = "Walls|Drawing", meta = (Units = "cm"))
 	float DrawHeight = 5.f;
@@ -87,7 +91,7 @@ protected:
 	TArray<FString> LimitViolations;
 
 	/**
-	 * Corners where the sides of two neighbouring walls meet, going counterclockwise around each node
+	 * How the outline gets from one wall's side to the next, going counterclockwise around each node
 	 * (seen from above). Positions are relative to the actor, like Nodes. Refreshed on every redraw.
 	 */
 	UPROPERTY(VisibleAnywhere, Transient, Category = "Walls")
