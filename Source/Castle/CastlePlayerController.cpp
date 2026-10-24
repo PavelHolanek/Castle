@@ -1,5 +1,6 @@
 #include "CastlePlayerController.h"
 
+#include "CastleBuildToolbarWidget.h"
 #include "CastleCoreConversion.h"
 #include "CastleWallBuildComponent.h"
 #include "CastleWallSubsystem.h"
@@ -42,6 +43,13 @@ void ACastlePlayerController::BeginPlay()
 	FInputModeGameAndUI InputMode;
 	InputMode.SetHideCursorDuringCapture(false);
 	SetInputMode(InputMode);
+
+	if (IsLocalController())
+	{
+		Toolbar = CreateWidget<UCastleBuildToolbarWidget>(this, UCastleBuildToolbarWidget::StaticClass());
+		Toolbar->SetTool(WallBuild);
+		Toolbar->AddToViewport();
+	}
 }
 
 void ACastlePlayerController::SetupInputComponent()

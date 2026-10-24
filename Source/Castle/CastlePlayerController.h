@@ -4,6 +4,7 @@
 #include "GameFramework/PlayerController.h"
 #include "CastlePlayerController.generated.h"
 
+class UCastleBuildToolbarWidget;
 class UCastleWallBuildComponent;
 
 /**
@@ -40,6 +41,9 @@ protected:
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Build")
 	TObjectPtr<UCastleWallBuildComponent> WallBuild;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UCastleBuildToolbarWidget> Toolbar;
 
 	/** Height of the ground plane the cursor is projected onto. */
 	UPROPERTY(EditAnywhere, Category = "Cursor", meta = (Units = "cm"))

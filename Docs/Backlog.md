@@ -25,6 +25,10 @@ Hotové položky mažeme, rozhodnutí přesouváme do kódu nebo do komentářů
   U T styku je to trojúhelník (60, 150), (0, −150), (−60, 150). Možnosti: konce zdí vést přes bod uzlu, nebo samostatný
   polygon uzlu. Rozhodnout také, které zdi patří trojúhelník prodloužení nebo zkosení. Bude to důležité pro meshe
   a materiály.
+- **Výčnělek čela tlustší zdi.** Při vnějším úhlu nad 270° (vnitřní je ostrý) a různých tloušťkách vyčnívá roh čela
+  tlustší zdi na straně ostrého úhlu ven přes stranu tenčí zdi. Je to vidět jen v debug kreslení, které ukazuje
+  surové strany v celé délce a kolmá čela. Ve skutečném půdorysu se ta strana zkrátí až k rohu ostrého úhlu
+  a čelo zmizí. Ověřit testem při sestavení půdorysu.
 - **Přednost zdí ve 3D.** Pravidlo „prodlužuje se širší zeď“ je čistě 2D. S výškami bude rozhodovat spíš přednost
   (věž proti hradbě, vyšší zeď proti nižší), a ta se nemusí shodovat se šířkou.
 - **Faktor prodloužení pod 1.** Konec strany tenčí zdi leží vždy blíž než šířka širší zdi, takže od faktoru 1 je
@@ -77,8 +81,17 @@ Hotové položky mažeme, rozhodnutí přesouváme do kódu nebo do komentářů
   spolu s návrhem pauzy: co všechno má v pauze fungovat (stavění?).
 - **Nejednotná plynulost.** Zoom dojíždí plynule, posun a rotace se rozjedou i zastaví okamžitě.
 - **Vstupy natvrdo v kódu.** Akce a mapping context vznikají v C++, nejdou přemapovat ani vidět v editoru.
-  S dalšími akcemi (stavební nástroj) přejít na assety `IA_`/`IMC_`.
+  S dalšími akcemi přejít na assety `IA_`/`IMC_`. Stavební nástroj (`CastleWallBuildComponent`) zatím vytváří své
+  akce v kódu stejně jako kamera.
 - **`MinZoom ≤ MaxZoom` se nekontroluje.** Obě hodnoty jsou editovatelné, po prohození se `Clamp` chová nesmyslně.
+
+### Stavební nástroj (`Source/Castle/CastleWallBuildComponent.*`, `Source/CastleCore/Public/CastleCore/WallPlacement.h`)
+
+- **Náhled kopíruje celou síť** při každém pohybu myši a celá se překresluje. U malých sítí nevadí, u velkého hradu
+  bude potřeba počítat jen změněné okolí.
+- **Kurzor nad lištou** se dál promítá na zem, náhled se tedy hýbe i pod lištou.
+- **Kurzor a kruh přichycení** se kreslí přes `DrawDebug*`, které v Shipping buildu nejsou. Síť zdí se kreslí přes
+  vlastní `ULineBatchComponent` a funguje všude.
 
 ### Debug actor (`Source/Castle/CastleWallDebugActor.*`)
 
@@ -87,8 +100,9 @@ Hotové položky mažeme, rozhodnutí přesouváme do kódu nebo do komentářů
 
 ## Nápady
 
-- **Stavební nástroj:** přichytávání k uzlům, zdem a úhlům (15°, 45°, 90°), rovnoběžky, kolmice a prodloužení
-  jako vodící linky, náhled před potvrzením, rozdělení zdi při napojení doprostřed (T).
+- **Stavební nástroj:** přichytávání ke zdem s jejich rozdělením (napojení doprostřed, T) a k úhlům (15°, 45°, 90°),
+  rovnoběžky, kolmice a prodloužení jako vodící linky, mazání zdí. Hotové je pokládání s náhledem, řetězení
+  a přichytávání k uzlům.
 - **Kamera:** zoom směrem ke kurzoru místo ke středu obrazovky, sklápění kamery k vodorovné při přiblížení,
   ovládání myší (rotace tažením prostředním tlačítkem, posun tažením nebo u okraje obrazovky).
 - **Undo/redo v core:** `FScopedTransaction` v UE funguje jen v editoru.

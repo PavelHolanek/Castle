@@ -90,6 +90,7 @@ void UCastleWallBuildComponent::SelectWallType(int32 Index)
 		SelectedWallType = Index;
 		const double HalfWidth = 0.5 * WallTypes[Index].Width;
 		Placement.SetWidths(HalfWidth, HalfWidth);
+		OnWallTypeSelected.Broadcast(Index);
 	}
 }
 

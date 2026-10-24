@@ -38,10 +38,17 @@ class CASTLE_API UCastleWallBuildComponent : public UActorComponent
 public:
 	UCastleWallBuildComponent();
 
+	DECLARE_MULTICAST_DELEGATE_OneParam(FOnWallTypeSelected, int32 /* Index */);
+
 	/** Creates the tool's controls and binds them to Input. The owning player controller calls it. */
 	void SetupInput(UEnhancedInputComponent& Input);
 
+	const TArray<FCastleWallType>& GetWallTypes() const { return WallTypes; }
+	int32 GetSelectedWallType() const { return SelectedWallType; }
 	void SelectWallType(int32 Index);
+
+	/** Broadcast whenever a wall type gets selected, by key or otherwise. */
+	FOnWallTypeSelected OnWallTypeSelected;
 
 	virtual void TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction) override;
 
