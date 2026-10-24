@@ -18,6 +18,26 @@ Hotové položky mažeme, rozhodnutí přesouváme do kódu nebo do komentářů
 - **Oblouky** se ve stycích zatím neřeší (mezera s obloukem zůstává `Unresolved`).
 - **Hraniční úhly.** Přesně na hranici dvou pravidel rozhoduje tolerance. Obrys je v obou případech stejný,
   body cesty se ale mohou lišit (např. dva skoro totožné body).
+- **Volný konec zdi.** Uzel s jedinou zdí má mezeru 360°, která zůstává `Unresolved`. Pro sestavení obrysu
+  bude potřeba čelo (zatím kolmé jako u surového obrysu, později případně jiné tvary).
+- **Komu patří plocha u uzlu.** Cesty mezer říkají, kudy vede obrys, ne kde končí polygon jednotlivé zdi.
+  Když konec každé zdi uzavřeme úsečkou mezi body jejích dvou mezer, zůstane od 3 zdí uprostřed nevyplněné místo.
+  U T styku je to trojúhelník (60, 150), (0, −150), (−60, 150). Možnosti: konce zdí vést přes bod uzlu, nebo samostatný
+  polygon uzlu. Rozhodnout také, které zdi patří trojúhelník prodloužení nebo zkosení. Bude to důležité pro meshe
+  a materiály.
+- **Přednost zdí ve 3D.** Pravidlo „prodlužuje se širší zeď“ je čistě 2D. S výškami bude rozhodovat spíš přednost
+  (věž proti hradbě, vyšší zeď proti nižší), a ta se nemusí shodovat se šířkou.
+
+### Síť zdí (`Source/CastleCore/Public/CastleCore/WallNetwork.h`)
+
+- **Překryvy mimo uzly.** Styky řeší jen zdi, které sdílí uzel. Dvě zdi bez společného uzlu se díky své šířce mohou
+  překrývat (zeď vedená těsně kolem cizího uzlu, dvě souběžné zdi blíž než jejich šířky). Pravidlo „zdi se
+  potkávají jen v uzlech“ síť nevynucuje, přijme i zdi, které se kříží bez uzlu. Bude potřeba kontrola minimálního
+  odstupu ve stavebním nástroji, nebo sjednocení půdorysů.
+- **Dvě rovné zdi mezi stejnými uzly** se úplně překryjí. Síť je povoluje kvůli dvojici oblouků (kulatá věž),
+  rovné duplicity by měla odmítnout.
+- **Uzly ve stejném místě a zeď nulové délky.** Směr zdi pak vyjde nulový a úhly v uzlu nedávají smysl.
+  Meze to zachytí (`TooShort`), síť to ale přijme. Stavební nástroj by měl blízké uzly slučovat.
 
 ### Meze (`Source/CastleCore/Public/CastleCore/WallLimits.h`)
 
@@ -39,4 +59,7 @@ Hotové položky mažeme, rozhodnutí přesouváme do kódu nebo do komentářů
 - **Kulatá věž** ze dvou půlkruhových oblouků mezi stejnými uzly.
 - **Typy zdí** (hradba, palác, příčka), otvory (brány, okna), cimbuří jako instancované meshe.
 - **SVG výstup z testů core** pro vizuální kontrolu bez spouštění UE.
+- **Náhodné testy styků:** generovat náhodné uzly a zdi v rámci mezí a kontrolovat obecné vlastnosti, například že
+  cesta mezery nevede dovnitř žádné ze zdí a že obrys sám sebe neprotíná. Najde slabiny systematicky, ne jen ty,
+  které nás napadnou.
 - **Později:** terén, vertikála (patra, ochozy).
