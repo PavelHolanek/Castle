@@ -16,6 +16,7 @@ struct FInputActionValue;
  *   WASD        - pan along the ground, relative to the current camera yaw
  *   Q / E       - rotate around the pivot
  *   Mouse wheel - zoom (spring arm length)
+ * Runs on real time, so game speed doesn't change how the camera moves.
  */
 UCLASS()
 class CASTLE_API ACastleCameraPawn : public APawn
@@ -40,9 +41,13 @@ protected:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Camera")
 	TObjectPtr<UCameraComponent> Camera;
 
-	/** Pan speed in cm/s at maximum zoom. Scales down proportionally when zoomed in. */
+	/** Pan speed in cm/s when fully zoomed in. In between, the speed follows the spring arm length linearly. */
 	UPROPERTY(EditAnywhere, Category = "Camera|Movement", meta = (ClampMin = "0"))
-	float MoveSpeed = 4000.f;
+	float MinZoomMoveSpeed = 5500.f;
+
+	/** Pan speed in cm/s when fully zoomed out. */
+	UPROPERTY(EditAnywhere, Category = "Camera|Movement", meta = (ClampMin = "0"))
+	float MaxZoomMoveSpeed = 6000.f;
 
 	/** Rotation speed in degrees per second. */
 	UPROPERTY(EditAnywhere, Category = "Camera|Rotation", meta = (ClampMin = "0"))
@@ -54,9 +59,9 @@ protected:
 	UPROPERTY(EditAnywhere, Category = "Camera|Zoom", meta = (ClampMin = "1"))
 	float MaxZoom = 4000.f;
 
-	/** Spring arm length change per mouse wheel notch. */
-	UPROPERTY(EditAnywhere, Category = "Camera|Zoom", meta = (ClampMin = "0"))
-	float ZoomStep = 250.f;
+	/** Spring arm length is divided (zoom in) or multiplied (zoom out) by this per mouse wheel notch. */
+	UPROPERTY(EditAnywhere, Category = "Camera|Zoom", meta = (ClampMin = "1"))
+	float ZoomStepFactor = 1.15f;
 
 	/** How fast the arm length catches up with the target zoom. 0 = instant. */
 	UPROPERTY(EditAnywhere, Category = "Camera|Zoom", meta = (ClampMin = "0"))
@@ -68,6 +73,9 @@ private:
 	void Move(const FInputActionValue& Value);
 	void Rotate(const FInputActionValue& Value);
 	void Zoom(const FInputActionValue& Value);
+
+	/** Frame time without time dilation. */
+	float GetRealDeltaSeconds() const;
 
 	UPROPERTY(Transient)
 	TObjectPtr<UInputMappingContext> MappingContext;

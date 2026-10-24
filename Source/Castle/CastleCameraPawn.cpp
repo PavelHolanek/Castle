@@ -39,7 +39,7 @@ void ACastleCameraPawn::Tick(float DeltaSeconds)
 {
 	Super::Tick(DeltaSeconds);
 
-	SpringArm->TargetArmLength = FMath::FInterpTo(SpringArm->TargetArmLength, TargetZoom, DeltaSeconds, ZoomInterpSpeed);
+	SpringArm->TargetArmLength = FMath::FInterpTo(SpringArm->TargetArmLength, TargetZoom, GetRealDeltaSeconds(), ZoomInterpSpeed);
 }
 
 void ACastleCameraPawn::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
@@ -108,20 +108,28 @@ void ACastleCameraPawn::Move(const FInputActionValue& Value)
 	const FVector2D Input = Value.Get<FVector2D>();
 	const FVector Direction = GetActorForwardVector() * Input.Y + GetActorRightVector() * Input.X;
 
-	// Pan faster when zoomed out so the on-screen speed stays roughly the same.
-	const float Speed = MoveSpeed * SpringArm->TargetArmLength / MaxZoom;
+	// Pan faster when zoomed out, where the same distance looks shorter on screen. Proportional speed
+	// would keep the on-screen speed constant, but then it crawls when zoomed in.
+	const float Speed = FMath::GetMappedRangeValueClamped(
+		FVector2f(MinZoom, MaxZoom), FVector2f(MinZoomMoveSpeed, MaxZoomMoveSpeed), SpringArm->TargetArmLength);
 
-	AddActorWorldOffset(Direction.GetClampedToMaxSize(1.f) * Speed * GetWorld()->GetDeltaSeconds());
+	AddActorWorldOffset(Direction.GetClampedToMaxSize(1.f) * Speed * GetRealDeltaSeconds());
 }
 
 void ACastleCameraPawn::Rotate(const FInputActionValue& Value)
 {
-	const float YawDelta = Value.Get<float>() * RotationSpeed * GetWorld()->GetDeltaSeconds();
+	const float YawDelta = Value.Get<float>() * RotationSpeed * GetRealDeltaSeconds();
 	AddActorWorldRotation(FRotator(0.f, YawDelta, 0.f));
 }
 
 void ACastleCameraPawn::Zoom(const FInputActionValue& Value)
 {
-	// Wheel up (positive) zooms in.
-	TargetZoom = FMath::Clamp(TargetZoom - Value.Get<float>() * ZoomStep, MinZoom, MaxZoom);
+	// Wheel up (positive) zooms in. Steps by a ratio, not a distance, so each notch feels the same
+	// at any zoom level.
+	TargetZoom = FMath::Clamp(TargetZoom * FMath::Pow(ZoomStepFactor, -Value.Get<float>()), MinZoom, MaxZoom);
+}
+
+float ACastleCameraPawn::GetRealDeltaSeconds() const
+{
+	return GetWorld()->DeltaRealTimeSeconds;
 }

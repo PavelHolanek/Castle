@@ -64,6 +64,22 @@ Hotové položky mažeme, rozhodnutí přesouváme do kódu nebo do komentářů
 
 - Googletest se stahuje bez `URL_HASH`, obsah archivu se tedy nekontroluje.
 
+### Kamera (`Source/Castle/CastleCameraPawn.*`)
+
+- **Bez hranic.** WASD odjede libovolně daleko od hradu, pozice pivotu se nijak neomezuje.
+- **Pevná výška pivotu.** Pivot zůstává ve výšce, kde se pawn objevil (u PlayerStartu kus nad zemí), kolem ní se otáčí
+  i zoomuje. S terénem ho bude potřeba přichytávat k zemi trasováním dolů. Rameno má vypnutou kolizi, kamera by pak
+  mohla zajet do kopce.
+- **Pauza.** Kamera běží na reálném čase, takže zpomalení nebo zrychlení hry ji neovlivní. V pauze ale stojí.
+  Aby v ní fungovala, potřebuje controller `bShouldPerformFullTickWhenPaused` (jinak se v pauze neaktualizuje camera
+  manager), pawn a spring arm `bTickEvenWhenPaused` (dojezd zoomu). Plný tick controlleru ale v pauze pustí všechny
+  vstupy (`TickPlayerInput` dostane `bGamePaused = false`), `bTriggerWhenPaused` u akcí pak nerozhoduje. Vyřešit
+  spolu s návrhem pauzy: co všechno má v pauze fungovat (stavění?).
+- **Nejednotná plynulost.** Zoom dojíždí plynule, posun a rotace se rozjedou i zastaví okamžitě.
+- **Vstupy natvrdo v kódu.** Akce a mapping context vznikají v C++, nejdou přemapovat ani vidět v editoru.
+  S dalšími akcemi (stavební nástroj) přejít na assety `IA_`/`IMC_`.
+- **`MinZoom ≤ MaxZoom` se nekontroluje.** Obě hodnoty jsou editovatelné, po prohození se `Clamp` chová nesmyslně.
+
 ### Debug actor (`Source/Castle/CastleWallDebugActor.*`)
 
 - Už položená instance si drží uložené `Nodes` a `Walls`. Nové výchozí případy se objeví jen u nového actoru
@@ -73,6 +89,8 @@ Hotové položky mažeme, rozhodnutí přesouváme do kódu nebo do komentářů
 
 - **Stavební nástroj:** přichytávání k uzlům, zdem a úhlům (15°, 45°, 90°), rovnoběžky, kolmice a prodloužení
   jako vodící linky, náhled před potvrzením, rozdělení zdi při napojení doprostřed (T).
+- **Kamera:** zoom směrem ke kurzoru místo ke středu obrazovky, sklápění kamery k vodorovné při přiblížení,
+  ovládání myší (rotace tažením prostředním tlačítkem, posun tažením nebo u okraje obrazovky).
 - **Undo/redo v core:** `FScopedTransaction` v UE funguje jen v editoru.
 - **Režim rohu (ostrý/zkosený)** jako přepínač u uzlu v UI.
 - **Místnosti** jako plochy planárního grafu zdí.
