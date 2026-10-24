@@ -133,6 +133,21 @@ TEST(WallNetwork, RemoveNodeRemovesItsWallsAndKeepsOtherIds)
 	EXPECT_EQ(Network.GetNodeIds(), (std::vector<NodeId>{A, C, D}));
 }
 
+TEST(WallNetwork, FindNearestNodeWithinDistance)
+{
+	WallNetwork Network;
+	const NodeId A = Network.AddNode({0.0, 0.0});
+	const NodeId B = Network.AddNode({100.0, 0.0});
+	const NodeId Removed = Network.AddNode({60.0, 0.0});
+	Network.RemoveNode(Removed);
+
+	EXPECT_EQ(Network.FindNearestNode({40.0, 0.0}, 50.0), A);
+	EXPECT_EQ(Network.FindNearestNode({70.0, 10.0}, 50.0), B);
+	EXPECT_EQ(Network.FindNearestNode({50.0, 0.0}, 50.0), A);
+	EXPECT_FALSE(Network.FindNearestNode({50.0, 30.0}, 50.0).IsValid());
+	EXPECT_FALSE(WallNetwork{}.FindNearestNode({0.0, 0.0}, 1000.0).IsValid());
+}
+
 TEST(WallNetwork, UnknownIdsFindNothing)
 {
 	const WallNetwork Network;

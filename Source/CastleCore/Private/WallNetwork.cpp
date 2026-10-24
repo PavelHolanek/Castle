@@ -108,6 +108,28 @@ namespace Castle::Core
 		return nullptr;
 	}
 
+	NodeId WallNetwork::FindNearestNode(Vec2 Point, double MaxDistance) const
+	{
+		NodeId Nearest;
+		double NearestDistance = 0.0;
+		for (size_t Index = 0; Index < Nodes.size(); ++Index)
+		{
+			if (!Nodes[Index])
+			{
+				continue;
+			}
+
+			// On a tie the older node wins.
+			const double NodeDistance = Distance(Nodes[Index]->Position, Point);
+			if (NodeDistance <= MaxDistance && (!Nearest.IsValid() || NodeDistance < NearestDistance))
+			{
+				Nearest = NodeId{static_cast<uint32_t>(Index)};
+				NearestDistance = NodeDistance;
+			}
+		}
+		return Nearest;
+	}
+
 	std::span<const WallId> WallNetwork::GetNodeWalls(NodeId Id) const
 	{
 		if (const Node* Found = FindNode(Id))

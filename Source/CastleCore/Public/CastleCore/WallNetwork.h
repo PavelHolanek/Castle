@@ -89,6 +89,9 @@ namespace Castle::Core
 		CASTLECORE_API const Node* FindNode(NodeId Id) const;
 		CASTLECORE_API const Wall* FindWall(WallId Id) const;
 
+		/** The node nearest to Point, at most MaxDistance away. Invalid id when there is none. */
+		CASTLECORE_API NodeId FindNearestNode(Vec2 Point, double MaxDistance) const;
+
 		/** Walls that start or end at the node. Empty for an unknown node. */
 		CASTLECORE_API std::span<const WallId> GetNodeWalls(NodeId Id) const;
 

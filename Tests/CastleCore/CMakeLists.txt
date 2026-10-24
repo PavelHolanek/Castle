@@ -41,7 +41,8 @@ add_executable(CastleCoreTests
 	WallCurveTests.cpp
 	WallLimitsTests.cpp
 	WallNetworkTests.cpp
-	WallOutlineTests.cpp)
+	WallOutlineTests.cpp
+	WallPlacementTests.cpp)
 target_link_libraries(CastleCoreTests PRIVATE CastleCore GTest::gtest_main)
 
 include(GoogleTest)

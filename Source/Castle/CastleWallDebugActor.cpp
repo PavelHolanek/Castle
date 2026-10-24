@@ -1,25 +1,12 @@
 #include "CastleWallDebugActor.h"
 
-#include "CastleCore/Junction.h"
-#include "CastleCore/WallLimits.h"
-#include "CastleCore/WallNetwork.h"
-#include "CastleCore/WallOutline.h"
+#include "CastleCoreConversion.h"
+#include "CastleWallDrawing.h"
 #include "Components/BillboardComponent.h"
 #include "Components/LineBatchComponent.h"
 
 namespace
 {
-	// The core plane is right-handed while Unreal's XY plane seen from above is mirrored, so Y flips both ways.
-	Castle::Core::Vec2 ToCore(const FVector& Local)
-	{
-		return {Local.X, -Local.Y};
-	}
-
-	FVector ToLocal(Castle::Core::Vec2 Point, double Z)
-	{
-		return FVector(Point.X, -Point.Y, Z);
-	}
-
 	FCastleDebugWall MakeDebugWall(int32 NodeA, int32 NodeB, float Width, float Bulge = 0.f)
 	{
 		FCastleDebugWall Wall;
@@ -37,22 +24,6 @@ namespace
 		Wall.WidthLeft = WidthLeft;
 		Wall.WidthRight = WidthRight;
 		return Wall;
-	}
-
-	const TCHAR* GetShapeName(Castle::Core::EGapShape Shape)
-	{
-		using Castle::Core::EGapShape;
-		switch (Shape)
-		{
-		case EGapShape::Unresolved: return TEXT("unresolved");
-		case EGapShape::Corner: return TEXT("corner");
-		case EGapShape::StraightExtension: return TEXT("straight extension");
-		case EGapShape::BeveledExtension: return TEXT("beveled extension");
-		case EGapShape::ExtensionToSideMiddle: return TEXT("extension to side middle");
-		case EGapShape::SharpOuterCorner: return TEXT("sharp outer corner");
-		case EGapShape::BeveledOuterCorner: return TEXT("beveled outer corner");
-		}
-		return TEXT("unknown");
 	}
 }
 
@@ -214,49 +185,12 @@ void ACastleWallDebugActor::Redraw()
 	{
 		return;
 	}
-	Lines->Flush();
-
-	const FTransform& ActorTransform = GetActorTransform();
-	const uint8 DepthPriority = SDPG_Foreground;
-	const double ArcStepRadians = FMath::DegreesToRadians(static_cast<double>(ArcStep));
-
-	TArray<FBatchedLine> Batch;
-	const auto AddCurve = [&](const WallCurve& Curve, const FLinearColor& Color)
-	{
-		const std::vector<Vec2> Points = Curve.Tessellate(ArcStepRadians);
-		for (size_t Index = 1; Index < Points.size(); ++Index)
-		{
-			Batch.Emplace(
-				ActorTransform.TransformPosition(ToLocal(Points[Index - 1], DrawHeight)),
-				ActorTransform.TransformPosition(ToLocal(Points[Index], DrawHeight)),
-				Color, 0.f, LineThickness, DepthPriority);
-		}
-	};
-
-	const WallLimits Limits;
-	const FLinearColor ViolationColor(1.f, 0.f, 1.f);
-	const FLinearColor CornerColor(1.f, 0.5f, 0.f);
-	const auto AddViolations = [this](const TCHAR* Kind, int32 Index, const std::vector<ELimitViolation>& Violations)
-	{
-		if (Violations.empty())
-		{
-			return;
-		}
-		TArray<FString> Names;
-		for (const ELimitViolation Violation : Violations)
-		{
-			Names.Add(UTF8_TO_TCHAR(Castle::Core::ToString(Violation)));
-		}
-		LimitViolations.Add(FString::Printf(TEXT("%s %d: %s"), Kind, Index, *FString::Join(Names, TEXT(", "))));
-	};
-	LimitViolations.Reset();
-	JunctionCorners.Reset();
 
 	WallNetwork Network;
 	TArray<NodeId> NodeIds;
 	for (const FVector& Position : Nodes)
 	{
-		NodeIds.Add(Network.AddNode(ToCore(Position)));
+		NodeIds.Add(Network.AddNode(CastleCoreConversion::ToCore(Position)));
 	}
 	for (const int32 NodeIndex : BeveledNodes)
 	{
@@ -266,6 +200,7 @@ void ACastleWallDebugActor::Redraw()
 		}
 	}
 
+	// Nodes keep their index as id; walls with an invalid node are skipped, so they need a lookup.
 	TMap<uint32, int32> WallIndexById;
 	for (int32 WallIndex = 0; WallIndex < Walls.Num(); ++WallIndex)
 	{
@@ -276,76 +211,22 @@ void ACastleWallDebugActor::Redraw()
 		}
 
 		const WallId Id = Network.AddWall(NodeIds[DebugWall.NodeA], NodeIds[DebugWall.NodeB], DebugWall.WidthLeft, DebugWall.WidthRight, DebugWall.Bulge);
-		const std::optional<RawWallOutline> Outline = BuildRawOutline(Network, Id);
-		if (!Outline)
+		if (Id.IsValid())
 		{
-			continue;
-		}
-		WallIndexById.Add(Id.Value, WallIndex);
-
-		const std::vector<ELimitViolation> Violations = CheckWall(Network, Id, Limits);
-		AddViolations(TEXT("Wall"), WallIndex, Violations);
-
-		AddCurve(Outline->Reference, Violations.empty() ? FLinearColor::Black : ViolationColor);
-		if (Outline->Left)
-		{
-			AddCurve(*Outline->Left, FLinearColor::Red);
-		}
-		if (Outline->Right)
-		{
-			AddCurve(*Outline->Right, FLinearColor::Red);
-		}
-		AddCurve(Outline->StartCap, FLinearColor::Blue);
-		AddCurve(Outline->EndCap, FLinearColor::Blue);
-	}
-
-	// Joint angles are known only once all walls are in.
-	for (int32 NodeIndex = 0; NodeIndex < NodeIds.Num(); ++NodeIndex)
-	{
-		const std::vector<ELimitViolation> Violations = CheckNode(Network, NodeIds[NodeIndex], Limits);
-		AddViolations(TEXT("Node"), NodeIndex, Violations);
-
-		const FVector& Position = Nodes[NodeIndex];
-		Lines->DrawPoint(ActorTransform.TransformPosition(FVector(Position.X, Position.Y, DrawHeight)),
-			Violations.empty() ? FLinearColor::Green : ViolationColor, NodeSize, DepthPriority);
-
-		const std::optional<Junction> NodeJunction = BuildJunction(Network, NodeIds[NodeIndex], JunctionSettings{.MaxExtensionFactor = MaxExtensionFactor});
-		if (!NodeJunction)
-		{
-			continue;
-		}
-		for (size_t GapIndex = 0; GapIndex < NodeJunction->Gaps.size(); ++GapIndex)
-		{
-			const JunctionGap& Gap = NodeJunction->Gaps[GapIndex];
-			if (Gap.Path.empty())
-			{
-				continue;
-			}
-
-			TArray<FString> Points;
-			for (size_t PointIndex = 0; PointIndex < Gap.Path.size(); ++PointIndex)
-			{
-				const FVector Point = ToLocal(Gap.Path[PointIndex], DrawHeight);
-				Lines->DrawPoint(ActorTransform.TransformPosition(Point), CornerColor, NodeSize, DepthPriority);
-				Points.Add(FString::Printf(TEXT("(%.1f, %.1f)"), Point.X, Point.Y));
-				if (PointIndex > 0)
-				{
-					AddCurve(WallCurve::MakeLine(Gap.Path[PointIndex - 1], Gap.Path[PointIndex]), CornerColor);
-				}
-			}
-
-			const WallId First = NodeJunction->Walls[GapIndex].Id;
-			const WallId Second = NodeJunction->Walls[(GapIndex + 1) % NodeJunction->Walls.size()].Id;
-			FString Description = FString::Printf(TEXT("Node %d, walls %d -> %d, %.1f deg, %s: %s"),
-				NodeIndex, WallIndexById.FindRef(First.Value), WallIndexById.FindRef(Second.Value),
-				FMath::RadiansToDegrees(Gap.Angle), GetShapeName(Gap.Shape), *FString::Join(Points, TEXT(" -> ")));
-			if (Gap.Path.size() == 2)
-			{
-				Description += FString::Printf(TEXT(", length %.1f"), Castle::Core::Distance(Gap.Path[0], Gap.Path[1]));
-			}
-			JunctionCorners.Add(MoveTemp(Description));
+			WallIndexById.Add(Id.Value, WallIndex);
 		}
 	}
 
-	Lines->DrawLines(Batch);
+	FCastleWallDrawOptions Options;
+	Options.ArcStep = ArcStep;
+	Options.LineThickness = LineThickness;
+	Options.NodeSize = NodeSize;
+	Options.DrawHeight = DrawHeight;
+	Options.Junctions.MaxExtensionFactor = MaxExtensionFactor;
+	Options.WallLabel = [&WallIndexById](WallId Id) { return WallIndexById.FindRef(Id.Value); };
+
+	FCastleWallDrawReport Report;
+	CastleWallDrawing::DrawNetwork(*Lines, Network, GetActorTransform(), Options, &Report);
+	LimitViolations = MoveTemp(Report.LimitViolations);
+	JunctionCorners = MoveTemp(Report.JunctionCorners);
 }
