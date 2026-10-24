@@ -27,6 +27,10 @@ Hotové položky mažeme, rozhodnutí přesouváme do kódu nebo do komentářů
   a materiály.
 - **Přednost zdí ve 3D.** Pravidlo „prodlužuje se širší zeď“ je čistě 2D. S výškami bude rozhodovat spíš přednost
   (věž proti hradbě, vyšší zeď proti nižší), a ta se nemusí shodovat se šířkou.
+- **Faktor prodloužení pod 1.** Konec strany tenčí zdi leží vždy blíž než šířka širší zdi, takže od faktoru 1 je
+  vždy v dosahu (komentář v `ExtendSide` zbytečně mluví o 2). Pod 1 může `IntersectRayWithCircle` vrátit vzdálenější
+  ze dvou průsečíků s kružnicí. Debug actor faktor povoluje od 0. Buď faktor omezit na ≥ 1, nebo rozhodnout,
+  který průsečík brát.
 
 ### Síť zdí (`Source/CastleCore/Public/CastleCore/WallNetwork.h`)
 
@@ -38,11 +42,27 @@ Hotové položky mažeme, rozhodnutí přesouváme do kódu nebo do komentářů
   rovné duplicity by měla odmítnout.
 - **Uzly ve stejném místě a zeď nulové délky.** Směr zdi pak vyjde nulový a úhly v uzlu nedávají smysl.
   Meze to zachytí (`TooShort`), síť to ale přijme. Stavební nástroj by měl blízké uzly slučovat.
+- **Kontrola vstupů.** `AddWall` pustí šířku NaN (`< 0.0` je pro NaN nepravda), `Bulge` ani pozice uzlů se na
+  konečné hodnoty nekontrolují. Důležité nejpozději při načítání uložené hry.
+- **Platnost ukazatelů.** Ukazatele a `span` z `FindNode`, `FindWall` a `GetNodeWalls` přestanou platit po `AddNode`,
+  `AddWall` a `RemoveWall`. V dokumentaci to zatím není.
 
 ### Meze (`Source/CastleCore/Public/CastleCore/WallLimits.h`)
 
 - Hodnoty jsou jen návrh.
 - Vztahy mezi mezemi se nekontrolují (např. minimální délka zdi vůči šířce sousedních zdí).
+- **Úhel v uzlu se počítá dvakrát.** `GetSmallestJointAngle` bere úhly po dvojicích, styky ze seřazených směrů, a směr
+  zdi od uzlu je napsaný v `WallLimits.cpp` i `Junction.cpp`. Sjednotit (minimum z `Junction::Gaps[i].Angle`, nebo
+  pomocná funkce ve `WallNetwork`). Komentář u smyčky v `GetSmallestJointAngle` mate: sousedství se nevyužívá.
+
+### Křivky (`Source/CastleCore/Public/CastleCore/WallCurve.h`)
+
+- **Přetečení v `Tessellate`.** Krok je zdola omezený jen na 1e-9, počet dílů pak přeteče `int` a na MSVC jemný krok
+  vrátí jediný díl. NaN projde taky. Debug actor drží krok ≥ 0,5°, takže se to zatím nestane.
+
+### Testy (`Tests/CastleCore`)
+
+- Googletest se stahuje bez `URL_HASH`, obsah archivu se tedy nekontroluje.
 
 ### Debug actor (`Source/Castle/CastleWallDebugActor.*`)
 

@@ -69,6 +69,14 @@ namespace
 		EXPECT_NEAR(DistanceFromClockwiseSide(Point, Degrees, Width), 0.0, 1e-6);
 		EXPECT_GT(Dot(Direction(Degrees), Point - SideStart), 0.0);
 	}
+
+	/** Checks that Point lies on the counterclockwise side of a straight wall leaving the origin, beyond the node. */
+	void ExpectOnCounterclockwiseSide(Vec2 Point, double Degrees, double Width)
+	{
+		const Vec2 SideStart = PerpLeft(Direction(Degrees)) * Width;
+		EXPECT_NEAR(Cross(Direction(Degrees), Point - SideStart), 0.0, 1e-6);
+		EXPECT_GT(Dot(Direction(Degrees), Point - SideStart), 0.0);
+	}
 }
 
 TEST(Junction, UnknownNodeHasNoJunction)
@@ -284,6 +292,18 @@ TEST(Junction, ExtensionStopsAtMiddleOfShortThinWall)
 		{{0.0, 100.0}, -PerpLeft(Direction(120.0)) * 20.0 + Direction(120.0) * 75.0});
 }
 
+TEST(Junction, BeveledExtensionStopsAtMiddleOfShortThinWall)
+{
+	// The bevel of LongExtensionIsBeveledToTwiceTheWiderWidth would meet the thin side about 318 along it,
+	// past the middle of a 400 long wall.
+	Star Joint;
+	Joint.AddOutgoing(0.0, 150.0, 150.0);
+	Joint.AddOutgoing(170.0, 80.0, 80.0, 400.0);
+
+	ExpectPath(Joint.Build().Gaps[0], EGapShape::ExtensionToSideMiddle,
+		{{0.0, 150.0}, -PerpLeft(Direction(170.0)) * 80.0 + Direction(170.0) * 200.0});
+}
+
 // 180 degrees
 
 TEST(Junction, WallsInLineWithEqualWidthsSimplyContinue)
@@ -328,6 +348,33 @@ TEST(Junction, StepOver180IsBeveledAsAt180)
 	ExpectOnClockwiseSide(Gap.Path[1], 200.0, 80.0);
 }
 
+TEST(Junction, StepOver180ExtendsTheSecondWallWhenItIsWider)
+{
+	// Mirror image of StepOver180IsBeveledAsAt180: the wider wall comes second in the gap.
+	Star Joint;
+	Joint.AddOutgoing(0.0, 150.0, 150.0);
+	Joint.AddOutgoing(160.0, 80.0, 80.0);
+
+	const JunctionGap Gap = Joint.Build().Gaps[1];
+	EXPECT_NEAR(Gap.Angle, DegreesToRadians(200.0), Tolerance);
+	EXPECT_EQ(Gap.Shape, EGapShape::BeveledExtension);
+	ASSERT_EQ(Gap.Path.size(), 2u);
+	EXPECT_NEAR(Distance(Gap.Path[0], Gap.Path[1]), 300.0, 1e-6);
+	ExpectOnCounterclockwiseSide(Gap.Path[0], 160.0, 80.0);
+	ExpectNear(Gap.Path[1], {0.0, -150.0});
+}
+
+TEST(Junction, StepOver180StopsAtMiddleOfShortThinWall)
+{
+	// The bevel of StepOver180IsBeveledAsAt180 would meet the thin side about 242 along it, past the middle of a 300 long wall.
+	Star Joint;
+	Joint.AddOutgoing(0.0, 150.0, 150.0);
+	Joint.AddOutgoing(200.0, 80.0, 80.0, 300.0);
+
+	ExpectPath(Joint.Build().Gaps[0], EGapShape::ExtensionToSideMiddle,
+		{{0.0, 150.0}, -PerpLeft(Direction(200.0)) * 80.0 + Direction(200.0) * 150.0});
+}
+
 TEST(Junction, StepOver180EndsWhereBevelLinesUpWithThinnerSide)
 {
 	// cos(Angle - 180) = 80 / 150 at about 237.8 degrees.
@@ -360,6 +407,27 @@ TEST(Junction, AtCriticalAngleTheOutlineFollowsTheThinnerSide)
 		for (const Vec2& Point : Gap.Path)
 		{
 			EXPECT_NEAR(DistanceFromClockwiseSide(Point, 225.0, ThinWidth), 0.0, 1e-6);
+		}
+	}
+}
+
+TEST(Junction, JustOver180WithNearlyEqualWidthsHasNoSpike)
+{
+	// Widths that differ by less than the tolerance count as equal, but the continued sides still cross far along one
+	// of the walls: 5e-7 / sin(1e-6 degrees), about 29. The outline must not run out there and back.
+	for (const auto& [FirstWidth, SecondWidth] : {std::pair{100.0, 100.0 + 5e-7}, std::pair{100.0 + 5e-7, 100.0}})
+	{
+		Star Joint;
+		Joint.AddOutgoing(0.0, FirstWidth, FirstWidth);
+		Joint.AddOutgoing(180.000001, SecondWidth, SecondWidth);
+		SCOPED_TRACE(FirstWidth);
+
+		const JunctionGap Gap = Joint.Build().Gaps[0];
+		EXPECT_GT(Gap.Angle, Pi);
+		ASSERT_FALSE(Gap.Path.empty());
+		for (const Vec2& Point : Gap.Path)
+		{
+			EXPECT_LT(Distance(Point, {0.0, 100.0}), 1e-5);
 		}
 	}
 }

@@ -172,7 +172,12 @@ namespace Castle::Core
 			if (CornerStyle == ECornerStyle::Sharp)
 			{
 				Gap.Shape = EGapShape::SharpOuterCorner;
-				if (Crossing)
+
+				// The checks above allow the tolerance in width, so the crossing may still lie on one of the sides. Just
+				// over 180 degrees that is far along it (width difference / sin(Angle - 180)), while the sides practically
+				// continue each other. Leave it out then, instead of running out to it and back.
+				if (Crossing && Dot(*Crossing - Sides.FirstStart, Sides.First.Direction) <= DistanceTolerance
+					&& Dot(*Crossing - Sides.SecondStart, Sides.Second.Direction) <= DistanceTolerance)
 				{
 					AppendPoint(Gap.Path, *Crossing);
 				}
