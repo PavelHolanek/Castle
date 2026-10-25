@@ -95,6 +95,9 @@ namespace Castle::Core
 		/** Walls that start or end at the node. Empty for an unknown node. */
 		CASTLECORE_API std::span<const WallId> GetNodeWalls(NodeId Id) const;
 
+		/** Total width (left and right) of the widest wall at the node. 0 when no wall meets there. */
+		CASTLECORE_API double GetWidestWall(NodeId Id) const;
+
 		/** Reference line from NodeA to NodeB. Empty for an unknown wall. */
 		CASTLECORE_API std::optional<WallCurve> GetReferenceCurve(WallId Id) const;
 

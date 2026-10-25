@@ -58,6 +58,13 @@ protected:
 	UPROPERTY(EditAnywhere, Category = "Build")
 	TArray<FCastleWallType> WallTypes;
 
+	/**
+	 * How far around a node the cursor snaps to it, as a multiple of the total width of the widest wall there.
+	 * Never less than the controller's pick radius.
+	 */
+	UPROPERTY(EditAnywhere, Category = "Build", meta = (ClampMin = "0"))
+	float SnapWidthFactor = 0.75f;
+
 private:
 	void CreateInputMappings();
 

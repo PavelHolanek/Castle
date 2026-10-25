@@ -5,6 +5,7 @@
 #include "CastlePlayerController.generated.h"
 
 class UCastleBuildToolbarWidget;
+class UCastleViewModeWidget;
 class UCastleWallBuildComponent;
 
 /**
@@ -23,6 +24,7 @@ public:
 
 	/**
 	 * Where the mouse cursor points at the ground plane, and how far PickRadiusPixels reach on the ground there.
+	 * Always the ground, even over walls: from any angle that is what the player aims at.
 	 * False when the cursor is outside the viewport or doesn't point at the ground.
 	 */
 	bool GetCursorOnGround(FVector& OutPoint, double& OutPickRadius) const;
@@ -44,6 +46,10 @@ protected:
 
 	UPROPERTY(Transient)
 	TObjectPtr<UCastleBuildToolbarWidget> Toolbar;
+
+	/** Development switch of how the walls are shown. Not created in shipping builds. */
+	UPROPERTY(Transient)
+	TObjectPtr<UCastleViewModeWidget> ViewModeSwitch;
 
 	/** Height of the ground plane the cursor is projected onto. */
 	UPROPERTY(EditAnywhere, Category = "Cursor", meta = (Units = "cm"))

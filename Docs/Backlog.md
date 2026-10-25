@@ -7,10 +7,12 @@ Hotové položky mažeme, rozhodnutí přesouváme do kódu nebo do komentářů
 
 ### Styky (`Source/CastleCore/Private/Junction.cpp`)
 
-- **Kolize styků na obou koncích krátké zdi.** Úpravy obrysu z obou konců se mohou potkat nebo překrýt.
-  Nejde vyřešit jen v core, bude potřeba omezení ve stavebním nástroji.
+- **Kolize styků na obou koncích krátké zdi.** Řezy z obou konců se mohou potkat nebo minout, ze zdi pak nic
+  nezbude a polygony obou uzlů se mohou překrývat. Půdorys to jen označí (`WallBody::bConsumedByJoints`, v kreslení
+  purpurová osa). Nejde vyřešit jen v core, bude potřeba omezení ve stavebním nástroji.
 - **Roh bez prodloužení nemá zarážku.** Prodloužení končí nejdál ve středu strany užší zdi, prostý průsečík stran ale
   může ležet i za koncem krátké zdi. Příklad: max. šířka 5 m, min. délka 1 m, dvě zdi pod 90° → roh 2,5 m od uzlu.
+  Řez zdi pak leží za jejím koncem a zeď je „spotřebovaná“ (viz předchozí bod).
 - **Maximální délka prodloužení** je zatím 2 × šířka širší zdi na straně úhlu (`JunctionSettings::MaxExtensionFactor`).
   Provizorní hodnota, ověřit v praxi.
 - **Dlouhý hrot ostrého vnějšího rohu.** Vzdálenost hrotu od uzlu roste s 1 / sin(θ / 2), kde θ je vnitřní úhel.
@@ -18,23 +20,27 @@ Hotové položky mažeme, rozhodnutí přesouváme do kódu nebo do komentářů
 - **Oblouky** se ve stycích zatím neřeší (mezera s obloukem zůstává `Unresolved`).
 - **Hraniční úhly.** Přesně na hranici dvou pravidel rozhoduje tolerance. Obrys je v obou případech stejný,
   body cesty se ale mohou lišit (např. dva skoro totožné body).
-- **Volný konec zdi.** Uzel s jedinou zdí má mezeru 360°, která zůstává `Unresolved`. Pro sestavení obrysu
-  bude potřeba čelo (zatím kolmé jako u surového obrysu, později případně jiné tvary).
-- **Komu patří plocha u uzlu.** Cesty mezer říkají, kudy vede obrys, ne kde končí polygon jednotlivé zdi.
-  Když konec každé zdi uzavřeme úsečkou mezi body jejích dvou mezer, zůstane od 3 zdí uprostřed nevyplněné místo.
-  U T styku je to trojúhelník (60, 150), (0, −150), (−60, 150). Možnosti: konce zdí vést přes bod uzlu, nebo samostatný
-  polygon uzlu. Rozhodnout také, které zdi patří trojúhelník prodloužení nebo zkosení. Bude to důležité pro meshe
-  a materiály.
-- **Výčnělek čela tlustší zdi.** Při vnějším úhlu nad 270° (vnitřní je ostrý) a různých tloušťkách vyčnívá roh čela
-  tlustší zdi na straně ostrého úhlu ven přes stranu tenčí zdi. Je to vidět jen v debug kreslení, které ukazuje
-  surové strany v celé délce a kolmá čela. Ve skutečném půdorysu se ta strana zkrátí až k rohu ostrého úhlu
-  a čelo zmizí. Ověřit testem při sestavení půdorysu.
+- **Volný konec zdi** končí v půdorysu kolmým čelem v uzlu. Jiné tvary (zakulacení, zkosení) zatím nejsou.
 - **Přednost zdí ve 3D.** Pravidlo „prodlužuje se širší zeď“ je čistě 2D. S výškami bude rozhodovat spíš přednost
   (věž proti hradbě, vyšší zeď proti nižší), a ta se nemusí shodovat se šířkou.
 - **Faktor prodloužení pod 1.** Konec strany tenčí zdi leží vždy blíž než šířka širší zdi, takže od faktoru 1 je
   vždy v dosahu (komentář v `ExtendSide` zbytečně mluví o 2). Pod 1 může `IntersectRayWithCircle` vrátit vzdálenější
   ze dvou průsečíků s kružnicí. Debug actor faktor povoluje od 0. Buď faktor omezit na ≥ 1, nebo rozhodnout,
   který průsečík brát.
+
+### Půdorys (`Source/CastleCore/Private/FloorPlan.cpp`)
+
+- **Velký polygon uzlu u ostrých úhlů.** Řez vede přes nejvzdálenější bod napojení, u ostrého úhlu tedy přes průsečík
+  vnitřních stran. Při 30° a stejných šířkách je to asi 3,7 × poloviční šířka od uzlu, celý ten kus patří uzlu.
+  Ověřit, jestli to bude vadit při kreslení prvků uzlu (vyšší sekce cimbuří, kůl palisády).
+- **Spoj mimo meze ve 3D** je oříznutý kruhem (2 × šířka nejširší zdi) a o 5 cm vyšší než zdi, které pod ním končí
+  surovým čelem a překrývají se. Rovné plochy překrývajících se šedých zdí leží ve stejné výšce; zatím to není vidět,
+  ale s texturou by mohly blikat (z-fighting).
+- **Uzel s obloukem** zůstává nevyřešený: zdi v něm končí kolmým čelem a překrývají se (`FloorPlan::UnresolvedNodes`).
+  Totéž platí pro uzly mimo meze, které hra předává jako přeskočené.
+- **Polygon uzlu se zjednodušuje** (odstraní se body na přímce mezi sousedy). Body, kde se strana zdi napojuje na
+  cestu mezery, v polygonu proto nemusí být. Až bude kreslení uzlu potřebovat vědět, který úsek obrysu patří které
+  zdi, bude potřeba bohatší popis než holý polygon.
 
 ### Síť zdí (`Source/CastleCore/Public/CastleCore/WallNetwork.h`)
 
@@ -92,6 +98,21 @@ Hotové položky mažeme, rozhodnutí přesouváme do kódu nebo do komentářů
 - **Kurzor nad lištou** se dál promítá na zem, náhled se tedy hýbe i pod lištou.
 - **Kurzor a kruh přichycení** se kreslí přes `DrawDebug*`, které v Shipping buildu nejsou. Síť zdí se kreslí přes
   vlastní `ULineBatchComponent` a funguje všude.
+
+### 3D zdi (`Source/Castle/CastleWallMesh.*`)
+
+- **Typ zdi v modelu chybí.** `Wall` v core nezná svůj typ, styl (výška, barva) je jeden pro celou síť. S více typy
+  přidat typ do modelu a rozhodnout, jak vypadá kus uzlu mezi různými typy (výška, materiál, prvky jako kůl palisády
+  nebo vyšší sekce cimbuří).
+- **Vše se staví znovu.** Při každé změně a v náhledu každý snímek se znovu počítají styky, půdorys, meze i celý mesh,
+  navíc zvlášť pro čáry a pro mesh. Později přepočítávat jen změněné okolí, případně mesh po zdech.
+- **Hranaté oblouky.** Každý 5° dílek oblouku má vlastní rovnou normálu. Pro hladký oblouk sdílet normály podél něj.
+- **Bez UV a tangent.** Textury budou potřebovat UV (podle světa, nebo podél zdi).
+- **Bez kolize.** Zdi nejsou překážkou pro trasování ani navigaci.
+- **Pruhy na stěnách (shadow acne).** Stěna, na kterou slunce svítí pod ostrým úhlem, si sama na sebe vrhá stín
+  v pruzích a na hranici rozlišení stínové mapy se pruhy lámou. Je to vlastnost stínů, ne geometrie, proto se objeví
+  jen u některých natočení zdi. Ověřit otočením slunce; řešit nastavením biasu stínů světla nebo virtuálních stínových
+  map, až budou zdi mít skutečný materiál.
 
 ### Debug actor (`Source/Castle/CastleWallDebugActor.*`)
 

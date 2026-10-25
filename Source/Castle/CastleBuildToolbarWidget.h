@@ -21,6 +21,9 @@ public:
 
 	void Setup(int32 InIndex, FOnChosen InOnChosen);
 
+	/** Highlights the button as the current choice. */
+	void SetSelected(bool bSelected);
+
 private:
 	UFUNCTION()
 	void HandleClicked();

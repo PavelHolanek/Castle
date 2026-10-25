@@ -57,6 +57,9 @@ namespace Castle::Core
 		 */
 		CASTLECORE_API std::optional<WallCurve> Offset(double OffsetDistance) const;
 
+		/** The part of the curve between parameters T0 and T1, running in the same direction when T0 < T1. */
+		CASTLECORE_API WallCurve Segment(double T0, double T1) const;
+
 		/**
 		 * Points along the curve, both ends included. Arcs are split so that no piece turns by more
 		 * than MaxAngleStep (radians); a line yields just its two ends.

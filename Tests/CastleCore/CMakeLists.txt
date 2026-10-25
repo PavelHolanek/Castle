@@ -37,7 +37,9 @@ else()
 endif()
 
 add_executable(CastleCoreTests
+	FloorPlanTests.cpp
 	JunctionTests.cpp
+	PolygonTests.cpp
 	WallCurveTests.cpp
 	WallLimitsTests.cpp
 	WallNetworkTests.cpp

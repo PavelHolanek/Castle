@@ -38,6 +38,7 @@ void UCastleWallBuildComponent::BeginPlay()
 {
 	Super::BeginPlay();
 
+	Placement.SetSnapWidthFactor(SnapWidthFactor);
 	SelectWallType(SelectedWallType);
 }
 
@@ -114,7 +115,8 @@ void UCastleWallBuildComponent::TickComponent(float DeltaTime, ELevelTick TickTy
 	// Ring around the node the cursor snaps to.
 	if (const Castle::Core::Node* Snapped = Walls->GetNetwork().FindNode(Placement.GetSnapNode()))
 	{
-		DrawDebugCircle(GetWorld(), CastleCoreConversion::ToUnreal(Snapped->Position, Cursor.Z + 3.0), PickRadius, 32, FColor::Cyan,
+		const double SnapRadius = Placement.GetSnapRadius(Walls->GetNetwork(), Placement.GetSnapNode(), PickRadius);
+		DrawDebugCircle(GetWorld(), CastleCoreConversion::ToUnreal(Snapped->Position, Cursor.Z + 3.0), SnapRadius, 32, FColor::Cyan,
 			false, -1.f, SDPG_Foreground, 4.f, FVector::XAxisVector, FVector::YAxisVector, false);
 	}
 }

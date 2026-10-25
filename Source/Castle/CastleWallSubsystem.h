@@ -2,6 +2,7 @@
 
 #include "CoreMinimal.h"
 #include "CastleCore/WallNetwork.h"
+#include "CastleWallViewMode.h"
 #include "Subsystems/WorldSubsystem.h"
 #include "CastleWallSubsystem.generated.h"
 
@@ -28,6 +29,14 @@ public:
 	void ShowPreview(const Castle::Core::WallNetwork& Preview);
 	void ClearPreview();
 
+	DECLARE_MULTICAST_DELEGATE_OneParam(FOnViewModeChanged, ECastleWallViewMode /* ViewMode */);
+
+	/** Fires whenever the view mode changes. */
+	FOnViewModeChanged OnViewModeChanged;
+
+	ECastleWallViewMode GetViewMode() const { return ViewMode; }
+	void SetViewMode(ECastleWallViewMode InViewMode);
+
 protected:
 	/** Only worlds that are played have walls to build. */
 	virtual bool DoesSupportWorldType(const EWorldType::Type WorldType) const override;
@@ -37,6 +46,8 @@ private:
 
 	Castle::Core::WallNetwork Network;
 	bool bShowingPreview = false;
+	/** What the player sees; shipping builds have no switch to change it. */
+	ECastleWallViewMode ViewMode = ECastleWallViewMode::Walls3D;
 
 	UPROPERTY(Transient)
 	TObjectPtr<ACastleWallNetworkActor> NetworkActor;

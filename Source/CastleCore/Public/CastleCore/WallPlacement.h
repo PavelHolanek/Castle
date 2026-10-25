@@ -16,7 +16,8 @@ namespace Castle::Core
 	 * node. Between clicks the cursor drives a preview, the network with the wall added, so that its junctions and
 	 * limits show before anything is committed. A wall outside the limits can't be committed.
 	 *
-	 * Within SnapRadius of the cursor, an existing node is used instead of a new one, for the start as well as the end.
+	 * Near the cursor, an existing node is used instead of a new one, for the start as well as the end. How near depends
+	 * on the node: SnapRadius, or more around wide walls (see GetSnapRadius).
 	 */
 	class WallPlacement
 	{
@@ -43,6 +44,12 @@ namespace Castle::Core
 		CASTLECORE_API void SetWidths(double InWidthLeft, double InWidthRight);
 
 		void SetLimits(const WallLimits& InLimits) { Limits = InLimits; }
+
+		/** How far the cursor snaps to a node, as a multiple of the total width of the widest wall there. */
+		void SetSnapWidthFactor(double InSnapWidthFactor) { SnapWidthFactor = InSnapWidthFactor; }
+
+		/** How close the cursor has to be to snap to Node: SnapRadius, or farther around a wide wall. */
+		CASTLECORE_API double GetSnapRadius(const WallNetwork& Network, NodeId Node, double SnapRadius) const;
 
 		/** The cursor moved. While picking the end, rebuilds the preview from Network. */
 		CASTLECORE_API void Hover(const WallNetwork& Network, Vec2 Cursor, double SnapRadius = 0.0);
@@ -77,7 +84,7 @@ namespace Castle::Core
 			NodeId Node;
 		};
 
-		/** Where the cursor points: the nearest node within SnapRadius other than Excluded, or the cursor itself. */
+		/** Where the cursor points: the nearest node within its snap radius other than Excluded, or the cursor itself. */
 		Endpoint Snap(const WallNetwork& Network, Vec2 Cursor, double SnapRadius, NodeId Excluded = {});
 
 		void UpdatePreview(const WallNetwork& Network, Vec2 Cursor, double SnapRadius);
@@ -87,6 +94,7 @@ namespace Castle::Core
 		double WidthLeft = 0.0;
 		double WidthRight = 0.0;
 		WallLimits Limits;
+		double SnapWidthFactor = 0.75;
 		NodeId SnapNode;
 
 		std::optional<WallNetwork> Preview;

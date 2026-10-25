@@ -1,5 +1,7 @@
 #include "CastleCore/WallNetwork.h"
 
+#include <algorithm>
+
 namespace Castle::Core
 {
 	NodeId WallNetwork::AddNode(Vec2 Position)
@@ -137,6 +139,17 @@ namespace Castle::Core
 			return Found->Walls;
 		}
 		return {};
+	}
+
+	double WallNetwork::GetWidestWall(NodeId Id) const
+	{
+		double Widest = 0.0;
+		for (const WallId Attached : GetNodeWalls(Id))
+		{
+			const Wall& Data = *FindWall(Attached);
+			Widest = std::max(Widest, Data.WidthLeft + Data.WidthRight);
+		}
+		return Widest;
 	}
 
 	std::optional<WallCurve> WallNetwork::GetReferenceCurve(WallId Id) const

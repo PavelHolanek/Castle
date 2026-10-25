@@ -199,7 +199,8 @@ TEST(WallPlacement, HoverReportsTheNodeItWouldSnapTo)
 	Placement.Hover(Walls.Network, {1010.0, 5.0}, SnapRadius);
 	EXPECT_EQ(Placement.GetSnapNode(), Walls.B);
 
-	Placement.Hover(Walls.Network, {1030.0, 5.0}, SnapRadius);
+	// The existing wall is 100 wide, so it snaps within 75.
+	Placement.Hover(Walls.Network, {1080.0, 5.0}, SnapRadius);
 	EXPECT_FALSE(Placement.GetSnapNode().IsValid());
 }
 
@@ -250,7 +251,7 @@ TEST(WallPlacement, NodeOutsideSnapRadiusIsNotUsed)
 	WallPlacement Placement = MakePlacement();
 
 	Placement.Click(Walls.Network, {0.0, 1000.0}, SnapRadius);
-	Placement.Click(Walls.Network, {30.0, 0.0}, SnapRadius);
+	Placement.Click(Walls.Network, {80.0, 0.0}, SnapRadius);
 
 	EXPECT_EQ(Walls.Network.GetNodeCount(), 4u);
 	EXPECT_EQ(Walls.Network.GetNodeWalls(Walls.A).size(), 1u);
@@ -323,4 +324,42 @@ TEST(WallPlacement, StartNodeRemovedMeanwhileIsRecreated)
 	EXPECT_EQ(Placement.Click(Network, {500.0, 500.0}), WallPlacement::EClickResult::Committed);
 	EXPECT_EQ(Network.GetNodeCount(), 2u);
 	EXPECT_EQ(Network.GetWallCount(), 1u);
+}
+
+TEST(WallPlacement, SnapRadiusGrowsWithTheWidestWallAtTheNode)
+{
+	WallNetwork Network;
+	const NodeId A = Network.AddNode({0.0, 0.0});
+	const NodeId B = Network.AddNode({1000.0, 0.0});
+	const NodeId Alone = Network.AddNode({0.0, 2000.0});
+	Network.AddWall(A, B, 50.0, 50.0);
+	Network.AddWall(A, Network.AddNode({0.0, -1000.0}), 150.0, 150.0);
+	WallPlacement Placement = MakePlacement();
+
+	EXPECT_NEAR(Placement.GetSnapRadius(Network, A, SnapRadius), 0.75 * 300.0, 1e-9);
+	EXPECT_NEAR(Placement.GetSnapRadius(Network, B, SnapRadius), 0.75 * 100.0, 1e-9);
+	EXPECT_NEAR(Placement.GetSnapRadius(Network, Alone, SnapRadius), SnapRadius, 1e-9);
+
+	Placement.Hover(Network, {200.0, 50.0}, SnapRadius);
+	EXPECT_EQ(Placement.GetSnapNode(), A);
+	Placement.Hover(Network, {240.0, 0.0}, SnapRadius);
+	EXPECT_FALSE(Placement.GetSnapNode().IsValid());
+
+	Placement.SetSnapWidthFactor(1.0);
+	Placement.Hover(Network, {240.0, 0.0}, SnapRadius);
+	EXPECT_EQ(Placement.GetSnapNode(), A);
+}
+
+TEST(WallPlacement, ExcludedNodeLeavesTheNextOneToSnapTo)
+{
+	// Two nodes 50 apart, both within reach; the start of the wall being placed is excluded, the other one is used.
+	WallNetwork Network;
+	const NodeId Near = Network.AddNode({0.0, 0.0});
+	const NodeId Other = Network.AddNode({50.0, 0.0});
+	WallPlacement Placement = MakePlacement();
+
+	Placement.Click(Network, {0.0, 0.0}, 100.0);
+	Placement.Hover(Network, {10.0, 0.0}, 100.0);
+	EXPECT_NE(Placement.GetSnapNode(), Near);
+	EXPECT_EQ(Placement.GetSnapNode(), Other);
 }

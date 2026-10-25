@@ -101,6 +101,15 @@ namespace Castle::Core
 		return MakeArc(Center, OffsetRadius, StartAngle, SweepAngle);
 	}
 
+	WallCurve WallCurve::Segment(double T0, double T1) const
+	{
+		if (Type == EType::Line)
+		{
+			return MakeLine(PointAt(T0), PointAt(T1));
+		}
+		return MakeArc(Center, Radius, StartAngle + SweepAngle * T0, SweepAngle * (T1 - T0));
+	}
+
 	std::vector<Vec2> WallCurve::Tessellate(double MaxAngleStep) const
 	{
 		if (Type == EType::Line)

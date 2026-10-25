@@ -29,6 +29,11 @@ void UCastleToolbarButton::Setup(int32 InIndex, FOnChosen InOnChosen)
 	OnClicked.AddUniqueDynamic(this, &UCastleToolbarButton::HandleClicked);
 }
 
+void UCastleToolbarButton::SetSelected(bool bSelected)
+{
+	SetBackgroundColor(bSelected ? SelectedButtonColor : IdleButtonColor);
+}
+
 void UCastleToolbarButton::HandleClicked()
 {
 	OnChosen.ExecuteIfBound(Index);
@@ -106,7 +111,7 @@ void UCastleBuildToolbarWidget::Highlight(int32 SelectedIndex)
 {
 	for (int32 Index = 0; Index < TypeButtons.Num(); ++Index)
 	{
-		TypeButtons[Index]->SetBackgroundColor(Index == SelectedIndex ? SelectedButtonColor : IdleButtonColor);
+		TypeButtons[Index]->SetSelected(Index == SelectedIndex);
 	}
 }
 

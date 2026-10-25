@@ -2,6 +2,7 @@
 
 #include "CastleBuildToolbarWidget.h"
 #include "CastleCoreConversion.h"
+#include "CastleViewModeWidget.h"
 #include "CastleWallBuildComponent.h"
 #include "CastleWallSubsystem.h"
 #include "DrawDebugHelpers.h"
@@ -49,6 +50,11 @@ void ACastlePlayerController::BeginPlay()
 		Toolbar = CreateWidget<UCastleBuildToolbarWidget>(this, UCastleBuildToolbarWidget::StaticClass());
 		Toolbar->SetTool(WallBuild);
 		Toolbar->AddToViewport();
+
+#if !UE_BUILD_SHIPPING
+		ViewModeSwitch = CreateWidget<UCastleViewModeWidget>(this, UCastleViewModeWidget::StaticClass());
+		ViewModeSwitch->AddToViewport();
+#endif
 	}
 }
 

@@ -1,11 +1,15 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "CastleWallMesh.h"
+#include "CastleWallViewMode.h"
 #include "GameFramework/Actor.h"
 #include "CastleWallDebugActor.generated.h"
 
 class UBillboardComponent;
+class UDynamicMeshComponent;
 class ULineBatchComponent;
+class UMaterialInterface;
 
 USTRUCT()
 struct FCastleDebugWall
@@ -37,13 +41,13 @@ struct FCastleDebugWall
 };
 
 /**
- * Debug view of the wall model. Draws each wall's reference line (black), both sides (red) and the
- * end caps (blue) as they are before junctions get resolved. Select the actor to drag its nodes in the
- * level viewport; the lines redraw on every change.
+ * Debug view of the wall model. Draws the floor plan: each wall's reference line (black), its body between the cuts
+ * (red sides, blue cuts) and the node pieces (orange), listed in FloorPlanPieces. ViewMode switches to the raw
+ * outlines with the junction paths instead. Select the actor to drag its nodes in the level viewport; the lines
+ * redraw on every change.
  *
- * Walls and nodes outside the default WallLimits are drawn in magenta and listed in LimitViolations.
- * Junction corners found so far, and the side extensions leading to them, are drawn in orange and listed
- * in JunctionCorners.
+ * Walls and nodes outside the default WallLimits are drawn in magenta and listed in LimitViolations; such nodes are
+ * left unresolved. The junction paths are listed in JunctionCorners.
  */
 UCLASS()
 class CASTLE_API ACastleWallDebugActor : public AActor
@@ -86,6 +90,13 @@ protected:
 	UPROPERTY(EditAnywhere, Category = "Walls|Drawing", meta = (Units = "cm"))
 	float DrawHeight = 5.f;
 
+	UPROPERTY(EditAnywhere, Category = "Walls|Drawing")
+	ECastleWallViewMode ViewMode = ECastleWallViewMode::FloorPlan;
+
+	/** How the walls look in the Walls 3D view. */
+	UPROPERTY(EditAnywhere, Category = "Walls|Drawing")
+	FCastleWallStyle Style;
+
 	/** Limits broken by the walls and nodes above, by index. Refreshed on every redraw. */
 	UPROPERTY(VisibleAnywhere, Transient, Category = "Walls")
 	TArray<FString> LimitViolations;
@@ -97,6 +108,13 @@ protected:
 	UPROPERTY(VisibleAnywhere, Transient, Category = "Walls")
 	TArray<FString> JunctionCorners;
 
+	/**
+	 * Where each wall is cut off at its nodes (distance along the reference line) and the outline of each node piece.
+	 * Positions are relative to the actor. Refreshed on every redraw.
+	 */
+	UPROPERTY(VisibleAnywhere, Transient, Category = "Walls")
+	TArray<FString> FloorPlanPieces;
+
 private:
 	void Redraw();
 
@@ -105,6 +123,12 @@ private:
 
 	UPROPERTY(VisibleAnywhere, Category = "Walls")
 	TObjectPtr<ULineBatchComponent> Lines;
+
+	UPROPERTY(VisibleAnywhere, Category = "Walls")
+	TObjectPtr<UDynamicMeshComponent> WallMesh;
+
+	UPROPERTY()
+	TObjectPtr<UMaterialInterface> BaseMaterial;
 
 #if WITH_EDITORONLY_DATA
 	UPROPERTY()

@@ -36,6 +36,22 @@ void UCastleWallSubsystem::ClearPreview()
 	}
 }
 
+void UCastleWallSubsystem::SetViewMode(ECastleWallViewMode InViewMode)
+{
+	if (ViewMode == InViewMode)
+	{
+		return;
+	}
+	ViewMode = InViewMode;
+
+	// A preview is shown anew every frame, the network has to be redrawn here.
+	if (!bShowingPreview)
+	{
+		Draw(Network);
+	}
+	OnViewModeChanged.Broadcast(ViewMode);
+}
+
 bool UCastleWallSubsystem::DoesSupportWorldType(const EWorldType::Type WorldType) const
 {
 	return WorldType == EWorldType::Game || WorldType == EWorldType::PIE;
@@ -45,6 +61,6 @@ void UCastleWallSubsystem::Draw(const Castle::Core::WallNetwork& Shown)
 {
 	if (NetworkActor)
 	{
-		NetworkActor->Redraw(Shown);
+		NetworkActor->Redraw(Shown, ViewMode);
 	}
 }

@@ -158,3 +158,16 @@ TEST(WallNetwork, UnknownIdsFindNothing)
 	EXPECT_FALSE(Network.GetReferenceCurve(WallId{}));
 	EXPECT_TRUE(Network.GetWallIds().empty());
 }
+
+TEST(WallNetwork, WidestWallAtANode)
+{
+	WallNetwork Network;
+	const NodeId Center = Network.AddNode({0.0, 0.0});
+	const NodeId Alone = Network.AddNode({0.0, 5000.0});
+	Network.AddWall(Center, Network.AddNode({1000.0, 0.0}), 50.0, 50.0);
+	Network.AddWall(Network.AddNode({0.0, 1000.0}), Center, 200.0, 0.0);
+
+	EXPECT_EQ(Network.GetWidestWall(Center), 200.0);
+	EXPECT_EQ(Network.GetWidestWall(Alone), 0.0);
+	EXPECT_EQ(Network.GetWidestWall(NodeId{}), 0.0);
+}

@@ -3,7 +3,10 @@
 #include "CastleCoreConversion.h"
 #include "CastleWallDrawing.h"
 #include "Components/BillboardComponent.h"
+#include "Components/DynamicMeshComponent.h"
 #include "Components/LineBatchComponent.h"
+#include "Materials/MaterialInterface.h"
+#include "UObject/ConstructorHelpers.h"
 
 namespace
 {
@@ -34,6 +37,15 @@ ACastleWallDebugActor::ACastleWallDebugActor()
 
 	Lines = CreateDefaultSubobject<ULineBatchComponent>(TEXT("Lines"));
 	Lines->SetupAttachment(SceneRoot);
+
+	// Relative to the actor, like the nodes, so the mesh moves with it.
+	WallMesh = CreateDefaultSubobject<UDynamicMeshComponent>(TEXT("WallMesh"));
+	WallMesh->SetupAttachment(SceneRoot);
+	WallMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	WallMesh->SetTangentsType(EDynamicMeshComponentTangentsMode::NoTangents);
+
+	static ConstructorHelpers::FObjectFinder<UMaterialInterface> Material(CastleWallMesh::BaseMaterialPath);
+	BaseMaterial = Material.Object;
 
 #if WITH_EDITORONLY_DATA
 	// Something to click on in the viewport, the lines themselves can't be selected.
@@ -181,7 +193,7 @@ void ACastleWallDebugActor::Redraw()
 {
 	using namespace Castle::Core;
 
-	if (!Lines)
+	if (!Lines || !WallMesh)
 	{
 		return;
 	}
@@ -222,6 +234,7 @@ void ACastleWallDebugActor::Redraw()
 	Options.LineThickness = LineThickness;
 	Options.NodeSize = NodeSize;
 	Options.DrawHeight = DrawHeight;
+	Options.ViewMode = ViewMode;
 	Options.Junctions.MaxExtensionFactor = MaxExtensionFactor;
 	Options.WallLabel = [&WallIndexById](WallId Id) { return WallIndexById.FindRef(Id.Value); };
 
@@ -229,4 +242,7 @@ void ACastleWallDebugActor::Redraw()
 	CastleWallDrawing::DrawNetwork(*Lines, Network, GetActorTransform(), Options, &Report);
 	LimitViolations = MoveTemp(Report.LimitViolations);
 	JunctionCorners = MoveTemp(Report.JunctionCorners);
+	FloorPlanPieces = MoveTemp(Report.FloorPlanPieces);
+
+	CastleWallMesh::ShowWalls(*WallMesh, ViewMode == ECastleWallViewMode::Walls3D ? &Network : nullptr, Options, Style, BaseMaterial);
 }

@@ -1,5 +1,7 @@
 #include "CastleCore/WallPlacement.h"
 
+#include <algorithm>
+#include <limits>
 #include <utility>
 
 namespace Castle::Core
@@ -65,12 +67,23 @@ namespace Castle::Core
 		PreviewViolations.clear();
 	}
 
+	double WallPlacement::GetSnapRadius(const WallNetwork& Network, NodeId Node, double SnapRadius) const
+	{
+		return std::max(SnapRadius, SnapWidthFactor * Network.GetWidestWall(Node));
+	}
+
 	WallPlacement::Endpoint WallPlacement::Snap(const WallNetwork& Network, Vec2 Cursor, double SnapRadius, NodeId Excluded)
 	{
-		SnapNode = Network.FindNearestNode(Cursor, SnapRadius);
-		if (SnapNode == Excluded)
+		SnapNode = {};
+		double Nearest = std::numeric_limits<double>::max();
+		for (const NodeId Id : Network.GetNodeIds())
 		{
-			SnapNode = {};
+			const double ToNode = Distance(Cursor, Network.FindNode(Id)->Position);
+			if (Id != Excluded && ToNode < Nearest && ToNode <= GetSnapRadius(Network, Id, SnapRadius))
+			{
+				SnapNode = Id;
+				Nearest = ToNode;
+			}
 		}
 
 		if (!SnapNode.IsValid())
