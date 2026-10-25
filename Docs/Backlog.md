@@ -1,138 +1,146 @@
 # Backlog
 
-Věci, které se vynořily během vývoje a na které zatím nebyl čas: známé slabiny, možné chyby a nápady.
-Hotové položky mažeme, rozhodnutí přesouváme do kódu nebo do komentářů u něj.
+Things that came up during development and haven't been dealt with yet: known weaknesses, possible bugs and ideas.
+Remove items once done; decisions move into the code or the comments next to it.
 
-## Známé slabiny
+## Known weaknesses
 
-### Styky (`Source/CastleCore/Private/Junction.cpp`)
+### Junctions (`Source/CastleCore/Private/Junction.cpp`)
 
-- **Kolize styků na obou koncích krátké zdi.** Řezy z obou konců se mohou potkat nebo minout, ze zdi pak nic
-  nezbude a polygony obou uzlů se mohou překrývat. Půdorys to jen označí (`WallBody::bConsumedByJoints`, v kreslení
-  purpurová osa). Nejde vyřešit jen v core, bude potřeba omezení ve stavebním nástroji.
-- **Roh bez prodloužení nemá zarážku.** Prodloužení končí nejdál ve středu strany užší zdi, prostý průsečík stran ale
-  může ležet i za koncem krátké zdi. Příklad: max. šířka 5 m, min. délka 1 m, dvě zdi pod 90° → roh 2,5 m od uzlu.
-  Řez zdi pak leží za jejím koncem a zeď je „spotřebovaná“ (viz předchozí bod).
-- **Maximální délka prodloužení** je zatím 2 × šířka širší zdi na straně úhlu (`JunctionSettings::MaxExtensionFactor`).
-  Provizorní hodnota, ověřit v praxi.
-- **Dlouhý hrot ostrého vnějšího rohu.** Vzdálenost hrotu od uzlu roste s 1 / sin(θ / 2), kde θ je vnitřní úhel.
-  Při 30° je to asi 3,9 × poloviční šířka. Zvážit automatické zkosení od určité délky.
-- **Oblouky** se ve stycích zatím neřeší (mezera s obloukem zůstává `Unresolved`).
-- **Hraniční úhly.** Přesně na hranici dvou pravidel rozhoduje tolerance. Obrys je v obou případech stejný,
-  body cesty se ale mohou lišit (např. dva skoro totožné body).
-- **Volný konec zdi** končí v půdorysu kolmým čelem v uzlu. Jiné tvary (zakulacení, zkosení) zatím nejsou.
-- **Přednost zdí ve 3D.** Pravidlo „prodlužuje se širší zeď“ je čistě 2D. S výškami bude rozhodovat spíš přednost
-  (věž proti hradbě, vyšší zeď proti nižší), a ta se nemusí shodovat se šířkou.
-- **Faktor prodloužení pod 1.** Konec strany tenčí zdi leží vždy blíž než šířka širší zdi, takže od faktoru 1 je
-  vždy v dosahu (komentář v `ExtendSide` zbytečně mluví o 2). Pod 1 může `IntersectRayWithCircle` vrátit vzdálenější
-  ze dvou průsečíků s kružnicí. Debug actor faktor povoluje od 0. Buď faktor omezit na ≥ 1, nebo rozhodnout,
-  který průsečík brát.
+- **Joints colliding on a short wall.** The cuts from both ends may meet or pass each other; nothing is left of the
+  wall and the two node pieces may overlap. The floor plan only flags it (`WallBody::bConsumedByJoints`, magenta axis
+  in the drawing). Can't be solved in the core alone; the build tool will need restrictions.
+- **A corner without an extension has no stop.** An extension ends at the middle of the thinner wall's side at most,
+  but a plain crossing of the sides may lie beyond the end of a short wall. Example: max width 5 m, min length 1 m,
+  two walls at 90° → corner 2.5 m from the node. The wall's cut then lies past its end and the wall is "consumed"
+  (see the previous item).
+- **Maximum extension length** is 2 × the wider wall's width on that side for now
+  (`JunctionSettings::MaxExtensionFactor`). A provisional value, to be checked in practice.
+- **Long spike of a sharp outer corner.** The spike's distance from the node grows with 1 / sin(θ / 2), θ being the
+  inner angle. At 30° it is about 3.9 × the half width. Consider beveling it automatically beyond some length.
+- **Arcs** aren't handled in junctions yet (a gap next to an arc stays `Unresolved`).
+- **Boundary angles.** Exactly at the boundary between two rules the tolerance decides. The outline is the same either
+  way, but the path points may differ (e.g. two nearly identical points).
+- **Free wall end** ends in the floor plan with a perpendicular cap at the node. Other shapes (rounded, beveled) don't
+  exist yet.
+- **Wall precedence in 3D.** The rule "the wider wall gets extended" is purely 2D. With heights, precedence will likely
+  decide (tower over curtain wall, higher wall over lower), and it need not match the width.
+- **Extension factor below 1.** The end of the thinner wall's side always lies closer than the wider wall's width, so
+  from a factor of 1 it is always in reach (the comment in `ExtendSide` needlessly talks about 2). Below 1,
+  `IntersectRayWithCircle` may return the farther of the two circle crossings. The debug actor allows factors from 0.
+  Either restrict the factor to ≥ 1, or decide which crossing to take.
 
-### Půdorys (`Source/CastleCore/Private/FloorPlan.cpp`)
+### Floor plan (`Source/CastleCore/Private/FloorPlan.cpp`)
 
-- **Velký polygon uzlu u ostrých úhlů.** Řez vede přes nejvzdálenější bod napojení, u ostrého úhlu tedy přes průsečík
-  vnitřních stran. Při 30° a stejných šířkách je to asi 3,7 × poloviční šířka od uzlu, celý ten kus patří uzlu.
-  Ověřit, jestli to bude vadit při kreslení prvků uzlu (vyšší sekce cimbuří, kůl palisády).
-- **Spoj mimo meze ve 3D** je oříznutý kruhem (2 × šířka nejširší zdi) a o 5 cm vyšší než zdi, které pod ním končí
-  surovým čelem a překrývají se. Rovné plochy překrývajících se šedých zdí leží ve stejné výšce; zatím to není vidět,
-  ale s texturou by mohly blikat (z-fighting).
-- **Uzel s obloukem** zůstává nevyřešený: zdi v něm končí kolmým čelem a překrývají se (`FloorPlan::UnresolvedNodes`).
-  Totéž platí pro uzly mimo meze, které hra předává jako přeskočené.
-- **Polygon uzlu se zjednodušuje** (odstraní se body na přímce mezi sousedy). Body, kde se strana zdi napojuje na
-  cestu mezery, v polygonu proto nemusí být. Až bude kreslení uzlu potřebovat vědět, který úsek obrysu patří které
-  zdi, bude potřeba bohatší popis než holý polygon.
+- **Large node piece at sharp angles.** The cut runs through the farthest attach point, at a sharp angle through the
+  crossing of the inner sides. At 30° and equal widths that is about 3.7 × the half width from the node, and the whole
+  piece belongs to the node. Check whether it gets in the way of drawing node features (higher crenellation section,
+  palisade post).
+- **Joint outside the limits in 3D** is clipped by a circle (2 × the widest wall's width) and stands 5 cm higher than
+  the walls, which end beneath it in raw caps and overlap. The top faces of overlapping grey walls lie at the same
+  height; not visible yet, but with a texture they might flicker (z-fighting).
+- **Node with an arc** stays unresolved: its walls end in perpendicular caps and overlap (`FloorPlan::UnresolvedNodes`).
+  The same goes for nodes outside the limits, which the game passes as skipped.
+- **The node piece is simplified** (points on the line between their neighbours are removed). The points where a wall
+  side joins the gap path may therefore be missing from the polygon. Once drawing a node needs to know which part of
+  the outline belongs to which wall, it will need a richer description than a bare polygon.
 
-### Síť zdí (`Source/CastleCore/Public/CastleCore/WallNetwork.h`)
+### Wall network (`Source/CastleCore/Public/CastleCore/WallNetwork.h`)
 
-- **Překryvy mimo uzly.** Styky řeší jen zdi, které sdílí uzel. Dvě zdi bez společného uzlu se díky své šířce mohou
-  překrývat (zeď vedená těsně kolem cizího uzlu, dvě souběžné zdi blíž než jejich šířky). Pravidlo „zdi se
-  potkávají jen v uzlech“ síť nevynucuje, přijme i zdi, které se kříží bez uzlu. Bude potřeba kontrola minimálního
-  odstupu ve stavebním nástroji, nebo sjednocení půdorysů.
-- **Dvě rovné zdi mezi stejnými uzly** se úplně překryjí. Síť je povoluje kvůli dvojici oblouků (kulatá věž),
-  rovné duplicity by měla odmítnout.
-- **Uzly ve stejném místě a zeď nulové délky.** Směr zdi pak vyjde nulový a úhly v uzlu nedávají smysl.
-  Meze to zachytí (`TooShort`), síť to ale přijme. Stavební nástroj by měl blízké uzly slučovat.
-- **Kontrola vstupů.** `AddWall` pustí šířku NaN (`< 0.0` je pro NaN nepravda), `Bulge` ani pozice uzlů se na
-  konečné hodnoty nekontrolují. Důležité nejpozději při načítání uložené hry.
-- **Platnost ukazatelů.** Ukazatele a `span` z `FindNode`, `FindWall` a `GetNodeWalls` přestanou platit po `AddNode`,
-  `AddWall` a `RemoveWall`. V dokumentaci to zatím není.
+- **Overlaps away from nodes.** Junctions only handle walls sharing a node. Two walls without a common node may overlap
+  thanks to their width (a wall running close past another node, two parallel walls closer than their widths). The
+  network doesn't enforce "walls meet only at nodes"; it accepts walls crossing without a node. The build tool will
+  need a minimum clearance check, or the floor plans will have to be merged.
+- **Two straight walls between the same nodes** overlap completely. The network allows them because of a pair of arcs
+  (round tower); straight duplicates should be rejected.
+- **Nodes at the same spot and zero-length walls.** The wall's direction comes out zero and the angles at the node make
+  no sense. The limits catch it (`TooShort`), the network accepts it. The build tool should merge nearby nodes.
+- **Input checks.** `AddWall` lets a NaN width through (`< 0.0` is false for NaN); neither `Bulge` nor node positions
+  are checked for finite values. Important by the time saved games get loaded.
+- **Pointer validity.** Pointers and spans from `FindNode`, `FindWall` and `GetNodeWalls` become invalid after
+  `AddNode`, `AddWall` and `RemoveWall`. Not documented yet.
 
-### Meze (`Source/CastleCore/Public/CastleCore/WallLimits.h`)
+### Limits (`Source/CastleCore/Public/CastleCore/WallLimits.h`)
 
-- Hodnoty jsou jen návrh.
-- Vztahy mezi mezemi se nekontrolují (např. minimální délka zdi vůči šířce sousedních zdí).
-- **Úhel v uzlu se počítá dvakrát.** `GetSmallestJointAngle` bere úhly po dvojicích, styky ze seřazených směrů, a směr
-  zdi od uzlu je napsaný v `WallLimits.cpp` i `Junction.cpp`. Sjednotit (minimum z `Junction::Gaps[i].Angle`, nebo
-  pomocná funkce ve `WallNetwork`). Komentář u smyčky v `GetSmallestJointAngle` mate: sousedství se nevyužívá.
+- The values are only a proposal.
+- Relations between limits aren't checked (e.g. minimum wall length against the width of neighbouring walls).
+- **The joint angle is computed twice.** `GetSmallestJointAngle` takes angles pairwise, the junctions from sorted
+  directions, and a wall's direction away from a node is written out in both `WallLimits.cpp` and `Junction.cpp`.
+  Unify (minimum of `Junction::Gaps[i].Angle`, or a helper in `WallNetwork`). The comment at the loop in
+  `GetSmallestJointAngle` is misleading: neighbourhood isn't used.
 
-### Křivky (`Source/CastleCore/Public/CastleCore/WallCurve.h`)
+### Curves (`Source/CastleCore/Public/CastleCore/WallCurve.h`)
 
-- **Přetečení v `Tessellate`.** Krok je zdola omezený jen na 1e-9, počet dílů pak přeteče `int` a na MSVC jemný krok
-  vrátí jediný díl. NaN projde taky. Debug actor drží krok ≥ 0,5°, takže se to zatím nestane.
+- **Overflow in `Tessellate`.** The step is only bounded below by 1e-9; the piece count then overflows `int`, and on
+  MSVC a fine step returns a single piece. NaN gets through too. The debug actor keeps the step ≥ 0.5°, so it doesn't
+  happen yet.
 
-### Testy (`Tests/CastleCore`)
+### Tests (`Tests/CastleCore`)
 
-- Googletest se stahuje bez `URL_HASH`, obsah archivu se tedy nekontroluje.
+- GoogleTest is downloaded without `URL_HASH`, so the archive's content isn't verified.
 
-### Kamera (`Source/Castle/CastleCameraPawn.*`)
+### Camera (`Source/Castle/CastleCameraPawn.*`)
 
-- **Bez hranic.** WASD odjede libovolně daleko od hradu, pozice pivotu se nijak neomezuje.
-- **Pevná výška pivotu.** Pivot zůstává ve výšce, kde se pawn objevil (u PlayerStartu kus nad zemí), kolem ní se otáčí
-  i zoomuje. S terénem ho bude potřeba přichytávat k zemi trasováním dolů. Rameno má vypnutou kolizi, kamera by pak
-  mohla zajet do kopce.
-- **Pauza.** Kamera běží na reálném čase, takže zpomalení nebo zrychlení hry ji neovlivní. V pauze ale stojí.
-  Aby v ní fungovala, potřebuje controller `bShouldPerformFullTickWhenPaused` (jinak se v pauze neaktualizuje camera
-  manager), pawn a spring arm `bTickEvenWhenPaused` (dojezd zoomu). Plný tick controlleru ale v pauze pustí všechny
-  vstupy (`TickPlayerInput` dostane `bGamePaused = false`), `bTriggerWhenPaused` u akcí pak nerozhoduje. Vyřešit
-  spolu s návrhem pauzy: co všechno má v pauze fungovat (stavění?).
-- **Nejednotná plynulost.** Zoom dojíždí plynule, posun a rotace se rozjedou i zastaví okamžitě.
-- **Vstupy natvrdo v kódu.** Akce a mapping context vznikají v C++, nejdou přemapovat ani vidět v editoru.
-  S dalšími akcemi přejít na assety `IA_`/`IMC_`. Stavební nástroj (`CastleWallBuildComponent`) zatím vytváří své
-  akce v kódu stejně jako kamera.
-- **`MinZoom ≤ MaxZoom` se nekontroluje.** Obě hodnoty jsou editovatelné, po prohození se `Clamp` chová nesmyslně.
+- **No bounds.** WASD moves arbitrarily far from the castle; the pivot position isn't limited.
+- **Fixed pivot height.** The pivot stays at the height where the pawn spawned (at the PlayerStart, somewhat above the
+  ground) and rotates and zooms around it. With terrain it will need to snap to the ground by tracing down. The spring
+  arm has collision disabled, so the camera could then dive into a hill.
+- **Pause.** The camera runs on real time, so slowing down or speeding up the game doesn't affect it. In pause it stops,
+  though. To work in pause it needs `bShouldPerformFullTickWhenPaused` on the controller (otherwise the camera manager
+  doesn't update in pause), and `bTickEvenWhenPaused` on the pawn and spring arm (zoom easing). A full controller tick
+  in pause lets all input through (`TickPlayerInput` gets `bGamePaused = false`), so `bTriggerWhenPaused` on actions no
+  longer decides. Solve together with the design of pause: what should work while paused (building?).
+- **Inconsistent smoothness.** Zoom eases in, panning and rotation start and stop instantly.
+- **Input hard-coded.** Actions and the mapping context are created in C++; they can't be remapped or seen in the editor.
+  With more actions, switch to `IA_`/`IMC_` assets. The build tool (`CastleWallBuildComponent`) creates its actions in
+  code too, like the camera.
+- **`MinZoom ≤ MaxZoom` isn't checked.** Both values are editable; swapped, `Clamp` behaves nonsensically.
 
-### Stavební nástroj (`Source/Castle/CastleWallBuildComponent.*`, `Source/CastleCore/Public/CastleCore/WallPlacement.h`)
+### Build tool (`Source/Castle/CastleWallBuildComponent.*`, `Source/CastleCore/Public/CastleCore/WallPlacement.h`)
 
-- **Náhled kopíruje celou síť** při každém pohybu myši a celá se překresluje. U malých sítí nevadí, u velkého hradu
-  bude potřeba počítat jen změněné okolí.
-- **Kurzor nad lištou** se dál promítá na zem, náhled se tedy hýbe i pod lištou.
-- **Kurzor a kruh přichycení** se kreslí přes `DrawDebug*`, které v Shipping buildu nejsou. Síť zdí se kreslí přes
-  vlastní `ULineBatchComponent` a funguje všude.
+- **The preview copies the whole network** on every mouse move and everything gets redrawn. Fine for small networks;
+  a large castle will need only the changed neighbourhood recomputed.
+- **Cursor over the toolbar** still projects onto the ground, so the preview moves even under the toolbar.
+- **Cursor and snap ring** are drawn with `DrawDebug*`, which doesn't exist in Shipping builds. The wall network is
+  drawn with its own `ULineBatchComponent` and works everywhere.
 
-### 3D zdi (`Source/Castle/CastleWallMesh.*`)
+### 3D walls (`Source/Castle/CastleWallMesh.*`)
 
-- **Typ zdi v modelu chybí.** `Wall` v core nezná svůj typ, styl (výška, barva) je jeden pro celou síť. S více typy
-  přidat typ do modelu a rozhodnout, jak vypadá kus uzlu mezi různými typy (výška, materiál, prvky jako kůl palisády
-  nebo vyšší sekce cimbuří).
-- **Vše se staví znovu.** Při každé změně a v náhledu každý snímek se znovu počítají styky, půdorys, meze i celý mesh,
-  navíc zvlášť pro čáry a pro mesh. Později přepočítávat jen změněné okolí, případně mesh po zdech.
-- **Hranaté oblouky.** Každý 5° dílek oblouku má vlastní rovnou normálu. Pro hladký oblouk sdílet normály podél něj.
-- **Bez UV a tangent.** Textury budou potřebovat UV (podle světa, nebo podél zdi).
-- **Bez kolize.** Zdi nejsou překážkou pro trasování ani navigaci.
-- **Pruhy na stěnách (shadow acne).** Stěna, na kterou slunce svítí pod ostrým úhlem, si sama na sebe vrhá stín
-  v pruzích a na hranici rozlišení stínové mapy se pruhy lámou. Je to vlastnost stínů, ne geometrie, proto se objeví
-  jen u některých natočení zdi. Ověřit otočením slunce; řešit nastavením biasu stínů světla nebo virtuálních stínových
-  map, až budou zdi mít skutečný materiál.
+- **No wall type in the model.** The core `Wall` doesn't know its type; the style (height, color) is one for the whole
+  network. With more types, add the type to the model and decide what a node piece between different types looks like
+  (height, material, features such as a palisade post or a higher crenellation section).
+- **Everything is rebuilt.** On every change, and every frame of the preview, junctions, floor plan, limits and the
+  whole mesh get recomputed, separately for the lines and the mesh. The target is castles with a few thousand
+  elements, so recompute only the changed neighbourhood later, possibly a mesh per wall.
+- **Faceted arcs.** Each 5° piece of an arc has its own flat normal. For a smooth arc, share normals along it.
+- **No UVs or tangents.** Textures will need UVs (world-aligned, or along the wall).
+- **No collision.** Walls don't block traces or navigation.
+- **Stripes on walls (shadow acne).** A face the sun hits at a grazing angle shadows itself in stripes, which break at
+  the boundary of the shadow map's resolution levels. It's a property of the shadows, not the geometry, so it shows
+  only for some wall orientations. Check by rotating the sun; solve with the light's shadow bias or virtual shadow map
+  settings once walls have a real material.
 
 ### Debug actor (`Source/Castle/CastleWallDebugActor.*`)
 
-- Už položená instance si drží uložené `Nodes` a `Walls`. Nové výchozí případy se objeví jen u nového actoru
-  nebo po Reset to Default.
+- An instance already placed keeps its saved `Nodes` and `Walls`. New default cases appear only on a new actor or after
+  Reset to Default.
 
-## Nápady
+## Ideas
 
-- **Stavební nástroj:** přichytávání ke zdem s jejich rozdělením (napojení doprostřed, T) a k úhlům (15°, 45°, 90°),
-  rovnoběžky, kolmice a prodloužení jako vodící linky, mazání zdí. Hotové je pokládání s náhledem, řetězení
-  a přichytávání k uzlům.
-- **Kamera:** zoom směrem ke kurzoru místo ke středu obrazovky, sklápění kamery k vodorovné při přiblížení,
-  ovládání myší (rotace tažením prostředním tlačítkem, posun tažením nebo u okraje obrazovky).
-- **Undo/redo v core:** `FScopedTransaction` v UE funguje jen v editoru.
-- **Režim rohu (ostrý/zkosený)** jako přepínač u uzlu v UI.
-- **Místnosti** jako plochy planárního grafu zdí.
-- **Kulatá věž** ze dvou půlkruhových oblouků mezi stejnými uzly.
-- **Typy zdí** (hradba, palác, příčka), otvory (brány, okna), cimbuří jako instancované meshe.
-- **SVG výstup z testů core** pro vizuální kontrolu bez spouštění UE.
-- **Náhodné testy styků:** generovat náhodné uzly a zdi v rámci mezí a kontrolovat obecné vlastnosti, například že
-  cesta mezery nevede dovnitř žádné ze zdí a že obrys sám sebe neprotíná. Najde slabiny systematicky, ne jen ty,
-  které nás napadnou.
-- **Později:** terén, vertikála (patra, ochozy).
+- **Build tool:** snapping to walls with splitting them (joining in the middle, T) and to angles (15°, 45°, 90°);
+  parallels, perpendiculars and extensions as guide lines; deleting walls. Done: placement with preview, chaining and
+  snapping to nodes.
+- **Camera:** zoom towards the cursor instead of the screen center, tilting the camera towards horizontal when zooming
+  in, mouse control (rotate by dragging with the middle button, pan by dragging or at the screen edge).
+- **Undo/redo in the core:** `FScopedTransaction` in UE works only in the editor.
+- **Corner style (sharp/beveled)** as a per-node switch in the UI.
+- **Rooms** as faces of the planar wall graph. The player gives a room a function (living quarters, smithy, kitchen…)
+  and upgrades; it is a dedicated space rather than a fixed building. Basis for the economy.
+- **Round tower** from two half-circle arcs between the same nodes.
+- **Wall types** (palisade, crenellated curtain wall, house wall, partition), openings (gates, windows), crenellations
+  as instanced meshes. Later also early gunpowder-era fortifications (bastions, as at Kalich castle).
+- **SVG output from the core tests** for visual checks without running UE.
+- **Random junction tests:** generate random nodes and walls within the limits and check general properties, e.g. that
+  no gap path runs into a wall and that the outline doesn't cross itself. Finds weaknesses systematically, not just the
+  ones we think of.
+- **Later:** terrain, verticality (floors, wall walks).
