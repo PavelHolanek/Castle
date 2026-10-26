@@ -49,8 +49,9 @@ Remove items once done; decisions move into the code or the comments next to it.
 
 - **Overlaps away from nodes.** Junctions only handle walls sharing a node. Two walls without a common node may overlap
   thanks to their width (a wall running close past another node, two parallel walls closer than their widths). The
-  network doesn't enforce "walls meet only at nodes"; it accepts walls crossing without a node. The build tool will
-  need a minimum clearance check, or the floor plans will have to be merged.
+  network doesn't enforce "walls meet only at nodes"; it accepts walls crossing without a node. The build tool splits
+  a wall that a new wall starts or ends on (T), but not yet one it crosses (X). It will also need a minimum clearance
+  check, or the floor plans will have to be merged.
 - **Two straight walls between the same nodes** overlap completely. The network allows them because of a pair of arcs
   (round tower); straight duplicates should be rejected.
 - **Nodes at the same spot and zero-length walls.** The wall's direction comes out zero and the angles at the node make
@@ -58,7 +59,7 @@ Remove items once done; decisions move into the code or the comments next to it.
 - **Input checks.** `AddWall` lets a NaN width through (`< 0.0` is false for NaN); neither `Bulge` nor node positions
   are checked for finite values. Important by the time saved games get loaded.
 - **Pointer validity.** Pointers and spans from `FindNode`, `FindWall` and `GetNodeWalls` become invalid after
-  `AddNode`, `AddWall` and `RemoveWall`. Not documented yet.
+  `AddNode`, `AddWall`, `SplitWall` and `RemoveWall`. Not documented yet.
 
 ### Limits (`Source/CastleCore/Public/CastleCore/WallLimits.h`)
 
@@ -100,6 +101,8 @@ Remove items once done; decisions move into the code or the comments next to it.
 
 - **The preview copies the whole network** on every mouse move and everything gets redrawn. Fine for small networks;
   a large castle will need only the changed neighbourhood recomputed.
+- **Snapping checks every node and wall** on every mouse move (`FindNearestNode`, `FindWallAt`). Thousands of elements
+  will need a spatial index.
 - **Cursor over the toolbar** still projects onto the ground, so the preview moves even under the toolbar.
 - **Cursor and snap ring** are drawn with `DrawDebug*`, which doesn't exist in Shipping builds. The wall network is
   drawn with its own `ULineBatchComponent` and works everywhere.
@@ -127,9 +130,10 @@ Remove items once done; decisions move into the code or the comments next to it.
 
 ## Ideas
 
-- **Build tool:** snapping to walls with splitting them (joining in the middle, T) and to angles (15°, 45°, 90°);
-  parallels, perpendiculars and extensions as guide lines; deleting walls. Done: placement with preview, chaining and
-  snapping to nodes.
+- **Build tool:** splitting walls the new wall crosses (X); snapping to angles (15°, 45°, 90°); parallels,
+  perpendiculars and extensions as guide lines (`WallCurve::Project` serves lines too); deleting walls (picking with
+  `WallNetwork::FindWallAt`). Done: placement with preview, chaining, snapping to nodes and to walls, which splits them
+  (T).
 - **Camera:** zoom towards the cursor instead of the screen center, tilting the camera towards horizontal when zooming
   in, mouse control (rotate by dragging with the middle button, pan by dragging or at the screen edge).
 - **Undo/redo in the core:** `FScopedTransaction` in UE works only in the editor.

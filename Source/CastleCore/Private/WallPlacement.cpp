@@ -6,6 +6,21 @@
 
 namespace Castle::Core
 {
+	namespace
+	{
+		/** Adds Found to Violations, each limit once even when it is broken in several places. */
+		void AddViolations(std::vector<ELimitViolation>& Violations, const std::vector<ELimitViolation>& Found)
+		{
+			for (const ELimitViolation Violation : Found)
+			{
+				if (std::find(Violations.begin(), Violations.end(), Violation) == Violations.end())
+				{
+					Violations.push_back(Violation);
+				}
+			}
+		}
+	}
+
 	void WallPlacement::SetWidths(double InWidthLeft, double InWidthRight)
 	{
 		WidthLeft = InWidthLeft;
@@ -44,8 +59,8 @@ namespace Castle::Core
 		// node and wall ids included.
 		Network = std::move(*Preview);
 
-		// Joining an existing node ends the chain, otherwise the wall's end starts the next one.
-		if (bPreviewEndSnapped)
+		// Joining an existing node or wall ends the chain, otherwise the wall's end starts the next one.
+		if (bPreviewEndJoins)
 		{
 			Cancel();
 		}
@@ -75,6 +90,7 @@ namespace Castle::Core
 	WallPlacement::Endpoint WallPlacement::Snap(const WallNetwork& Network, Vec2 Cursor, double SnapRadius, NodeId Excluded)
 	{
 		SnapNode = {};
+		SnapWall.reset();
 		double Nearest = std::numeric_limits<double>::max();
 		for (const NodeId Id : Network.GetNodeIds())
 		{
@@ -86,11 +102,34 @@ namespace Castle::Core
 			}
 		}
 
-		if (!SnapNode.IsValid())
+		if (SnapNode.IsValid())
 		{
-			return Endpoint{.Position = Cursor};
+			return Endpoint{.Position = Network.FindNode(SnapNode)->Position, .Node = SnapNode};
 		}
-		return Endpoint{.Position = Network.FindNode(SnapNode)->Position, .Node = SnapNode};
+
+		SnapWall = Network.FindWallAt(Cursor, SnapRadius);
+		if (SnapWall)
+		{
+			return Endpoint{.Position = SnapWall->Position, .Wall = SnapWall->Wall, .WallT = SnapWall->T};
+		}
+		return Endpoint{.Position = Cursor};
+	}
+
+	NodeId WallPlacement::MakeNode(WallNetwork& Network, const Endpoint& Point)
+	{
+		if (Point.Node.IsValid() && Network.FindNode(Point.Node))
+		{
+			return Point.Node;
+		}
+		if (Point.Wall.IsValid())
+		{
+			// Fails for a wall removed meanwhile, or a split right at the end of a part, which then gets a node of its own.
+			if (const NodeId Split = Network.SplitWall(Point.Wall, Point.WallT); Split.IsValid())
+			{
+				return Split;
+			}
+		}
+		return Network.AddNode(Point.Position);
 	}
 
 	void WallPlacement::UpdatePreview(const WallNetwork& Network, Vec2 Cursor, double SnapRadius)
@@ -100,17 +139,42 @@ namespace Castle::Core
 		const Endpoint End = Snap(Network, Cursor, SnapRadius, bStartExists ? Start.Node : NodeId{});
 
 		Preview = Network;
-		const NodeId StartNode = bStartExists ? Start.Node : Preview->AddNode(Start.Position);
-		bPreviewEndSnapped = End.Node.IsValid();
-		PreviewEndNode = bPreviewEndSnapped ? End.Node : Preview->AddNode(End.Position);
+		const NodeId StartNode = MakeNode(*Preview, Start);
+
+		// Both ends on the same wall: the start split it into the part before, which kept the wall's id, and the part
+		// after it. The end splits the part it lies on, measured along that part.
+		Endpoint EndOnPart = End;
+		const std::span<const WallId> StartWalls = Preview->GetNodeWalls(StartNode);
+		if (End.Wall.IsValid() && End.Wall == Start.Wall && StartWalls.size() == 2)
+		{
+			if (End.WallT < Start.WallT)
+			{
+				EndOnPart.WallT = End.WallT / Start.WallT;
+			}
+			else
+			{
+				EndOnPart.Wall = StartWalls[1];
+				EndOnPart.WallT = (End.WallT - Start.WallT) / (1.0 - Start.WallT);
+			}
+		}
+
+		PreviewEndNode = MakeNode(*Preview, EndOnPart);
+		bPreviewEndJoins = End.Node.IsValid() || End.Wall.IsValid();
 		PreviewWall = Preview->AddWall(StartNode, PreviewEndNode, WidthLeft, WidthRight);
 
-		PreviewViolations = CheckWall(*Preview, PreviewWall, Limits);
+		PreviewViolations.clear();
+		AddViolations(PreviewViolations, CheckWall(*Preview, PreviewWall, Limits));
 		for (const NodeId Node : {StartNode, PreviewEndNode})
 		{
-			for (const ELimitViolation Violation : CheckNode(*Preview, Node, Limits))
+			AddViolations(PreviewViolations, CheckNode(*Preview, Node, Limits));
+
+			// A new node may split a wall, whose parts have to keep within the limits too (e.g. not get too short).
+			if (!Network.FindNode(Node))
 			{
-				PreviewViolations.push_back(Violation);
+				for (const WallId Attached : Preview->GetNodeWalls(Node))
+				{
+					AddViolations(PreviewViolations, CheckWall(*Preview, Attached, Limits));
+				}
 			}
 		}
 	}

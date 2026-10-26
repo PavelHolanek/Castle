@@ -64,6 +64,17 @@ namespace Castle::Core
 		double Bulge = 0.0;
 	};
 
+	/** A point on a wall's reference line. */
+	struct WallPoint
+	{
+		WallId Wall;
+
+		/** Where along the reference line: 0 at NodeA, 1 at NodeB. */
+		double T = 0.0;
+
+		Vec2 Position;
+	};
+
 	/**
 	 * Walls connected through shared nodes. This is the authoritative model of what the player built;
 	 * outlines and junctions are derived from it.
@@ -79,6 +90,14 @@ namespace Castle::Core
 		/** Invalid id when a node doesn't exist, both ends are the same node, or a width is negative. */
 		CASTLECORE_API WallId AddWall(NodeId NodeA, NodeId NodeB, double WidthLeft, double WidthRight, double Bulge = 0.0);
 
+		/**
+		 * Splits the wall with a new node at T along its reference line (0 to 1, ends excluded). The wall keeps its id
+		 * and its data but now ends at the new node; a new wall with the same data runs from there to the old end.
+		 * An arc splits into two arcs of the same circle. The new node lists the wall first and the new wall second.
+		 * Invalid id when the wall doesn't exist or T isn't between its ends.
+		 */
+		CASTLECORE_API NodeId SplitWall(WallId Id, double T);
+
 		CASTLECORE_API bool MoveNode(NodeId Id, Vec2 Position);
 		CASTLECORE_API bool SetCornerStyle(NodeId Id, ECornerStyle Style);
 		CASTLECORE_API bool RemoveWall(WallId Id);
@@ -91,6 +110,14 @@ namespace Castle::Core
 
 		/** The node nearest to Point, at most MaxDistance away. Invalid id when there is none. */
 		CASTLECORE_API NodeId FindNearestNode(Vec2 Point, double MaxDistance) const;
+
+		/**
+		 * The wall whose body lies under Point, with the point of its reference line nearest to Point. The body reaches
+		 * WidthLeft to the left of the reference line and WidthRight to the right, but at least MinReach, so that thin
+		 * walls are easy to hit. It ends square at the wall's ends; past them Point doesn't count, so the result is never
+		 * an end. Where bodies overlap, the nearest reference line wins. Empty when no wall lies under Point.
+		 */
+		CASTLECORE_API std::optional<WallPoint> FindWallAt(Vec2 Point, double MinReach = 0.0) const;
 
 		/** Walls that start or end at the node. Empty for an unknown node. */
 		CASTLECORE_API std::span<const WallId> GetNodeWalls(NodeId Id) const;

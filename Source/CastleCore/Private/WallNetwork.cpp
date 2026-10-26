@@ -1,6 +1,7 @@
 #include "CastleCore/WallNetwork.h"
 
 #include <algorithm>
+#include <cmath>
 
 namespace Castle::Core
 {
@@ -32,6 +33,36 @@ namespace Castle::Core
 		B->Walls.push_back(Id);
 		++WallCount;
 		return Id;
+	}
+
+	NodeId WallNetwork::SplitWall(WallId Id, double T)
+	{
+		const std::optional<WallCurve> Reference = GetReferenceCurve(Id);
+		// Written this way round to reject NaN as well.
+		if (!Reference || !(T > 0.0 && T < 1.0))
+		{
+			return {};
+		}
+
+		const NodeId Middle = AddNode(Reference->PointAt(T));
+		const WallId Rest{static_cast<uint32_t>(Walls.size())};
+
+		// The bulge is the tangent of a quarter of the included angle; each part gets its share of the angle.
+		Wall& First = *Walls[Id.Value];
+		Wall Second = First;
+		const double QuarterAngle = std::atan(First.Bulge);
+		First.NodeB = Middle;
+		First.Bulge = std::tan(T * QuarterAngle);
+		Second.NodeA = Middle;
+		Second.Bulge = std::tan((1.0 - T) * QuarterAngle);
+
+		std::vector<WallId>& AtEnd = FindNodeMutable(Second.NodeB)->Walls;
+		std::replace(AtEnd.begin(), AtEnd.end(), Id, Rest);
+		FindNodeMutable(Middle)->Walls = {Id, Rest};
+
+		Walls.push_back(Second);
+		++WallCount;
+		return Middle;
 	}
 
 	bool WallNetwork::MoveNode(NodeId Id, Vec2 Position)
@@ -130,6 +161,41 @@ namespace Castle::Core
 			}
 		}
 		return Nearest;
+	}
+
+	std::optional<WallPoint> WallNetwork::FindWallAt(Vec2 Point, double MinReach) const
+	{
+		std::optional<WallPoint> Found;
+		double FoundDistance = 0.0;
+		for (size_t Index = 0; Index < Walls.size(); ++Index)
+		{
+			if (!Walls[Index])
+			{
+				continue;
+			}
+
+			const WallId Id{static_cast<uint32_t>(Index)};
+			const WallCurve Reference = *GetReferenceCurve(Id);
+			const std::optional<double> T = Reference.Project(Point);
+			if (!T || *T <= 0.0 || *T >= 1.0)
+			{
+				continue;
+			}
+
+			const Vec2 OnReference = Reference.PointAt(*T);
+			const Vec2 Away = Point - OnReference;
+			const bool bLeft = Cross(Reference.TangentAt(*T), Away) >= 0.0;
+			const double Reach = std::max(MinReach, bLeft ? Walls[Index]->WidthLeft : Walls[Index]->WidthRight);
+			const double ToReference = Length(Away);
+
+			// On a tie the older wall wins.
+			if (ToReference <= Reach && (!Found || ToReference < FoundDistance))
+			{
+				Found = WallPoint{.Wall = Id, .T = *T, .Position = OnReference};
+				FoundDistance = ToReference;
+			}
+		}
+		return Found;
 	}
 
 	std::span<const WallId> WallNetwork::GetNodeWalls(NodeId Id) const

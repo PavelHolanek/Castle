@@ -155,3 +155,39 @@ TEST(WallCurve, ArcTessellationRespectsAngleStep)
 		EXPECT_NEAR(Distance(Point, Arc.GetCenter()), 50.0, Tolerance);
 	}
 }
+
+TEST(WallCurve, ProjectOntoLine)
+{
+	const WallCurve Line = WallCurve::MakeLine({100.0, 0.0}, {300.0, 0.0});
+
+	EXPECT_NEAR(*Line.Project({150.0, 40.0}), 0.25, Tolerance);
+	EXPECT_NEAR(*Line.Project({300.0, -10.0}), 1.0, Tolerance);
+	EXPECT_FALSE(Line.Project({301.0, 0.0}));
+	EXPECT_FALSE(Line.Project({50.0, 5.0}));
+	EXPECT_FALSE(WallCurve::MakeLine({1.0, 1.0}, {1.0, 1.0}).Project({1.0, 2.0}));
+}
+
+TEST(WallCurve, ProjectOntoArc)
+{
+	// A quarter circle around the origin, once counterclockwise from +X to +Y and once back.
+	const WallCurve Ccw = WallCurve::MakeArc({0.0, 0.0}, 100.0, 0.0, Pi / 2.0);
+	const WallCurve Cw = WallCurve::MakeArc({0.0, 0.0}, 100.0, Pi / 2.0, -Pi / 2.0);
+	const Vec2 At30Degrees = PointOnCircle({0.0, 0.0}, 40.0, Pi / 6.0);
+
+	EXPECT_NEAR(*Ccw.Project({300.0, 300.0}), 0.5, Tolerance);
+	EXPECT_NEAR(*Ccw.Project(At30Degrees), 1.0 / 3.0, Tolerance);
+	EXPECT_NEAR(*Cw.Project(At30Degrees), 2.0 / 3.0, Tolerance);
+	EXPECT_FALSE(Ccw.Project({100.0, -1.0}));
+	EXPECT_FALSE(Ccw.Project({-50.0, -50.0}));
+	EXPECT_FALSE(Ccw.Project({0.0, 0.0}));
+}
+
+TEST(WallCurve, ProjectOntoArcAcrossTheAngleWrap)
+{
+	// From 170 to 210 degrees: the angles of its points jump from +Pi to -Pi.
+	const WallCurve Arc = WallCurve::MakeArc({0.0, 0.0}, 100.0, DegreesToRadians(170.0), DegreesToRadians(40.0));
+
+	EXPECT_NEAR(*Arc.Project(PointOnCircle({0.0, 0.0}, 50.0, DegreesToRadians(-170.0))), 0.5, Tolerance);
+	EXPECT_NEAR(*Arc.Project({-500.0, 0.0}), 0.25, Tolerance);
+	EXPECT_FALSE(Arc.Project(PointOnCircle({0.0, 0.0}, 50.0, DegreesToRadians(-140.0))));
+}

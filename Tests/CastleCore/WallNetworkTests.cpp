@@ -3,6 +3,7 @@
 #include <gtest/gtest.h>
 
 #include <algorithm>
+#include <limits>
 
 using namespace Castle::Core;
 
@@ -170,4 +171,136 @@ TEST(WallNetwork, WidestWallAtANode)
 	EXPECT_EQ(Network.GetWidestWall(Center), 200.0);
 	EXPECT_EQ(Network.GetWidestWall(Alone), 0.0);
 	EXPECT_EQ(Network.GetWidestWall(NodeId{}), 0.0);
+}
+
+TEST(WallNetwork, SplitWallKeepsItsIdForTheFirstPart)
+{
+	WallNetwork Network;
+	const NodeId A = Network.AddNode({0.0, 0.0});
+	const NodeId B = Network.AddNode({1000.0, 0.0});
+	const WallId AB = Network.AddWall(A, B, 30.0, 70.0);
+
+	const NodeId Middle = Network.SplitWall(AB, 0.25);
+
+	ASSERT_TRUE(Middle.IsValid());
+	EXPECT_TRUE(IsNearlyEqual(Network.FindNode(Middle)->Position, {250.0, 0.0}));
+	EXPECT_EQ(Network.GetNodeCount(), 3u);
+	EXPECT_EQ(Network.GetWallCount(), 2u);
+
+	const std::span<const WallId> AtMiddle = Network.GetNodeWalls(Middle);
+	ASSERT_EQ(AtMiddle.size(), 2u);
+	EXPECT_EQ(AtMiddle[0], AB);
+	const WallId Rest = AtMiddle[1];
+
+	const Wall* First = Network.FindWall(AB);
+	const Wall* Second = Network.FindWall(Rest);
+	ASSERT_NE(Second, nullptr);
+	EXPECT_EQ(First->NodeA, A);
+	EXPECT_EQ(First->NodeB, Middle);
+	EXPECT_EQ(Second->NodeA, Middle);
+	EXPECT_EQ(Second->NodeB, B);
+	for (const Wall* Part : {First, Second})
+	{
+		EXPECT_EQ(Part->WidthLeft, 30.0);
+		EXPECT_EQ(Part->WidthRight, 70.0);
+		EXPECT_EQ(Part->Bulge, 0.0);
+	}
+
+	// The old end holds the second part instead of the wall.
+	EXPECT_EQ(Network.GetNodeWalls(A).size(), 1u);
+	ASSERT_EQ(Network.GetNodeWalls(B).size(), 1u);
+	EXPECT_EQ(Network.GetNodeWalls(B)[0], Rest);
+}
+
+TEST(WallNetwork, SplitArcGivesArcsOfTheSameCircle)
+{
+	WallNetwork Network;
+	const WallId Arc = Network.AddWall(Network.AddNode({0.0, 0.0}), Network.AddNode({200.0, 0.0}), 20.0, 20.0, 1.0);
+	const WallCurve Original = *Network.GetReferenceCurve(Arc);
+
+	const NodeId Middle = Network.SplitWall(Arc, 0.25);
+
+	ASSERT_TRUE(Middle.IsValid());
+	EXPECT_TRUE(IsNearlyEqual(Network.FindNode(Middle)->Position, Original.PointAt(0.25)));
+
+	const WallCurve First = *Network.GetReferenceCurve(Arc);
+	const WallCurve Second = *Network.GetReferenceCurve(Network.GetNodeWalls(Middle)[1]);
+	for (const WallCurve& Part : {First, Second})
+	{
+		ASSERT_TRUE(Part.IsArc());
+		EXPECT_TRUE(IsNearlyEqual(Part.GetCenter(), Original.GetCenter()));
+		EXPECT_NEAR(Part.GetRadius(), Original.GetRadius(), 1e-9);
+	}
+	EXPECT_NEAR(First.GetSweepAngle(), 0.25 * Pi, 1e-9);
+	EXPECT_NEAR(Second.GetSweepAngle(), 0.75 * Pi, 1e-9);
+	EXPECT_TRUE(IsNearlyEqual(Second.PointAt(0.5), Original.PointAt(0.625)));
+}
+
+TEST(WallNetwork, SplitNeedsAPointBetweenTheEnds)
+{
+	WallNetwork Network;
+	const WallId AB = Network.AddWall(Network.AddNode({0.0, 0.0}), Network.AddNode({1000.0, 0.0}), 50.0, 50.0);
+
+	for (const double T : {0.0, 1.0, -0.5, 1.5, std::numeric_limits<double>::quiet_NaN()})
+	{
+		EXPECT_FALSE(Network.SplitWall(AB, T).IsValid());
+	}
+	EXPECT_FALSE(Network.SplitWall(WallId{}, 0.5).IsValid());
+	EXPECT_EQ(Network.GetNodeCount(), 2u);
+	EXPECT_EQ(Network.GetWallCount(), 1u);
+}
+
+TEST(WallNetwork, FindWallAtPointOverItsBody)
+{
+	// 1000 long along X, 100 wide to the left and 20 to the right.
+	WallNetwork Network;
+	const WallId AB = Network.AddWall(Network.AddNode({0.0, 0.0}), Network.AddNode({1000.0, 0.0}), 100.0, 20.0);
+
+	const std::optional<WallPoint> Hit = Network.FindWallAt({300.0, 90.0});
+	ASSERT_TRUE(Hit);
+	EXPECT_EQ(Hit->Wall, AB);
+	EXPECT_NEAR(Hit->T, 0.3, 1e-9);
+	EXPECT_TRUE(IsNearlyEqual(Hit->Position, {300.0, 0.0}));
+
+	EXPECT_TRUE(Network.FindWallAt({300.0, -20.0}));
+	EXPECT_FALSE(Network.FindWallAt({300.0, -30.0}));
+	EXPECT_FALSE(Network.FindWallAt({300.0, 110.0}));
+
+	// The reach helps only where the wall is thinner.
+	EXPECT_TRUE(Network.FindWallAt({300.0, -30.0}, 40.0));
+	EXPECT_FALSE(Network.FindWallAt({300.0, 110.0}, 40.0));
+
+	// Past the ends the wall doesn't count, even within its width.
+	EXPECT_FALSE(Network.FindWallAt({-5.0, 10.0}));
+	EXPECT_FALSE(Network.FindWallAt({1005.0, 10.0}));
+}
+
+TEST(WallNetwork, FindWallAtPrefersTheNearestReferenceLine)
+{
+	// Two parallel walls 80 apart, overlapping by 20.
+	WallNetwork Network;
+	const WallId Lower = Network.AddWall(Network.AddNode({0.0, 0.0}), Network.AddNode({1000.0, 0.0}), 50.0, 50.0);
+	const WallId Upper = Network.AddWall(Network.AddNode({0.0, 80.0}), Network.AddNode({1000.0, 80.0}), 50.0, 50.0);
+
+	EXPECT_EQ(Network.FindWallAt({500.0, 35.0})->Wall, Lower);
+	EXPECT_EQ(Network.FindWallAt({500.0, 45.0})->Wall, Upper);
+
+	Network.RemoveWall(Lower);
+	EXPECT_EQ(Network.FindWallAt({500.0, 35.0})->Wall, Upper);
+}
+
+TEST(WallNetwork, FindWallAtOnAnArc)
+{
+	// A half circle around (500, 0) with radius 500, bowing to -Y.
+	WallNetwork Network;
+	const WallId Arc = Network.AddWall(Network.AddNode({0.0, 0.0}), Network.AddNode({1000.0, 0.0}), 50.0, 50.0, 1.0);
+
+	const std::optional<WallPoint> Hit = Network.FindWallAt({500.0, -540.0});
+	ASSERT_TRUE(Hit);
+	EXPECT_EQ(Hit->Wall, Arc);
+	EXPECT_NEAR(Hit->T, 0.5, 1e-9);
+	EXPECT_TRUE(IsNearlyEqual(Hit->Position, {500.0, -500.0}));
+
+	EXPECT_FALSE(Network.FindWallAt({500.0, -560.0}));
+	EXPECT_FALSE(Network.FindWallAt({500.0, 0.0}));
 }

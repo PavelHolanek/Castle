@@ -33,8 +33,9 @@ input (UE) -> WallPlacement (core) -> WallNetwork (authoritative model) -> Junct
   `CastleCoreModule.cpp`, the module registration. The same sources build in the CMake test project, which keeps the
   core clean.
   - `Vec2.h`: vector, tolerances, angles.
-  - `WallCurve`: straight line or circular arc (bulge), exact offsets, tessellation.
-  - `WallNetwork`: nodes and walls with stable ids. Walls meet only at shared nodes.
+  - `WallCurve`: straight line or circular arc (bulge), exact offsets, projection of a point, tessellation.
+  - `WallNetwork`: nodes and walls with stable ids. Walls meet only at shared nodes; splitting a wall, finding the wall
+    under a point.
   - `WallLimits`: limits (length, width, arcs, smallest joint angle 30°).
   - `Junction`: the junction solver, gaps between neighbouring walls at a node.
   - `FloorPlan`: splits the floor area into wall bodies and node pieces.
@@ -130,9 +131,10 @@ input (UE) -> WallPlacement (core) -> WallNetwork (authoritative model) -> Junct
 
 Done:
 - wall model, junction solver for straight walls at all angles, floor plan with node pieces;
-- limits; wall placement with preview, chaining and snapping to nodes (radius grows with the widest wall);
+- limits; wall placement with preview, chaining and snapping to nodes (radius grows with the widest wall) and to
+  walls, which get split (T); ending on a node or a wall ends the chain;
 - bottom toolbar with three wall widths, view mode switch;
 - the first, debug wall type: extruded to 6 m, one color.
 
-Next candidates from the backlog: arc junctions, joining a wall in its middle (T), deleting walls and undo, wall types
-in the model, wall collisions, random junction tests.
+Next candidates from the backlog: splitting crossed walls (X), arc junctions, deleting walls and undo, wall types in the
+model, wall collisions, random junction tests.

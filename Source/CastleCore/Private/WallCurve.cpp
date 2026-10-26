@@ -84,6 +84,41 @@ namespace Castle::Core
 		return Radius * std::abs(SweepAngle);
 	}
 
+	std::optional<double> WallCurve::Project(Vec2 Point) const
+	{
+		double T = 0.0;
+		if (Type == EType::Line)
+		{
+			const Vec2 Direction = LineEnd - LineStart;
+			const double LengthSquared = Dot(Direction, Direction);
+			if (LengthSquared <= DistanceTolerance * DistanceTolerance)
+			{
+				return std::nullopt;
+			}
+			T = Dot(Point - LineStart, Direction) / LengthSquared;
+		}
+		else
+		{
+			const Vec2 FromCenter = Point - Center;
+			if (Length(FromCenter) <= DistanceTolerance || std::abs(SweepAngle) <= AngleTolerance)
+			{
+				return std::nullopt;
+			}
+
+			// Measured from the middle of the arc, so that the angle doesn't wrap around anywhere on it.
+			const double MiddleAngle = StartAngle + 0.5 * SweepAngle;
+			const double FromMiddle = std::remainder(std::atan2(FromCenter.Y, FromCenter.X) - MiddleAngle, 2.0 * Pi);
+			T = 0.5 + FromMiddle / SweepAngle;
+		}
+
+		// A point at an end still counts when rounding moves it just past.
+		if (T < -AngleTolerance || T > 1.0 + AngleTolerance)
+		{
+			return std::nullopt;
+		}
+		return std::clamp(T, 0.0, 1.0);
+	}
+
 	std::optional<WallCurve> WallCurve::Offset(double OffsetDistance) const
 	{
 		if (Type == EType::Line)

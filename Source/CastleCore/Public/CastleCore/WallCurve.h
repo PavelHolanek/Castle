@@ -45,6 +45,13 @@ namespace Castle::Core
 
 		CASTLECORE_API double GetLength() const;
 
+		/**
+		 * Parameter of the point on the curve nearest to Point, where a perpendicular from Point meets the curve.
+		 * Empty when that point would lie beyond the ends, or when the curve gives no direction to measure from
+		 * (a line of no length, the center of an arc).
+		 */
+		CASTLECORE_API std::optional<double> Project(Vec2 Point) const;
+
 		/** Arc only. */
 		Vec2 GetCenter() const { return Center; }
 		double GetRadius() const { return Radius; }

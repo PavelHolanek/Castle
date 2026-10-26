@@ -112,12 +112,22 @@ void UCastleWallBuildComponent::TickComponent(float DeltaTime, ELevelTick TickTy
 	UpdatePreview();
 	ShowInfo();
 
-	// Ring around the node the cursor snaps to.
-	if (const Castle::Core::Node* Snapped = Walls->GetNetwork().FindNode(Placement.GetSnapNode()))
+	// Ring around the node the cursor snaps to, or a line across the wall where it would be split.
+	const Castle::Core::WallNetwork& Network = Walls->GetNetwork();
+	const double MarkHeight = Cursor.Z + 3.0;
+	if (const Castle::Core::Node* Snapped = Network.FindNode(Placement.GetSnapNode()))
 	{
-		const double SnapRadius = Placement.GetSnapRadius(Walls->GetNetwork(), Placement.GetSnapNode(), PickRadius);
-		DrawDebugCircle(GetWorld(), CastleCoreConversion::ToUnreal(Snapped->Position, Cursor.Z + 3.0), SnapRadius, 32, FColor::Cyan,
+		const double SnapRadius = Placement.GetSnapRadius(Network, Placement.GetSnapNode(), PickRadius);
+		DrawDebugCircle(GetWorld(), CastleCoreConversion::ToUnreal(Snapped->Position, MarkHeight), SnapRadius, 32, FColor::Cyan,
 			false, -1.f, SDPG_Foreground, 4.f, FVector::XAxisVector, FVector::YAxisVector, false);
+	}
+	else if (const std::optional<Castle::Core::WallPoint>& OnWall = Placement.GetSnapWall())
+	{
+		const Castle::Core::Wall& Split = *Network.FindWall(OnWall->Wall);
+		const Castle::Core::Vec2 Left = Castle::Core::PerpLeft(Network.GetReferenceCurve(OnWall->Wall)->TangentAt(OnWall->T));
+		DrawDebugLine(GetWorld(), CastleCoreConversion::ToUnreal(OnWall->Position + Left * Split.WidthLeft, MarkHeight),
+			CastleCoreConversion::ToUnreal(OnWall->Position - Left * Split.WidthRight, MarkHeight), FColor::Cyan, false, -1.f,
+			SDPG_Foreground, 4.f);
 	}
 }
 

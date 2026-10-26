@@ -24,11 +24,13 @@ struct FCastleWallType
 
 /**
  * The wall building tool of a player controller:
- *   Left click  - picks the start of a wall, then its end, which starts the next wall unless it is an existing node
+ *   Left click  - picks the start of a wall, then its end, which starts the next wall unless it joins an existing
+ *                 node or wall
  *   Right click - drops the wall being placed and ends the chain
  *   1, 2, 3...  - chooses the wall type
- * A click near an existing node (within the controller's pick radius) uses that node. While a wall is being
- * placed, the world shows the network with it, junctions and limits included.
+ * A click near an existing node (within the controller's pick radius, or more around wide walls) uses that node;
+ * a click on a wall splits it there. While a wall is being placed, the world shows the network with it, junctions
+ * and limits included.
  */
 UCLASS()
 class CASTLE_API UCastleWallBuildComponent : public UActorComponent

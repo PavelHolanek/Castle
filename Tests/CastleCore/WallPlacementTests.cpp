@@ -3,6 +3,7 @@
 #include <gtest/gtest.h>
 
 #include <algorithm>
+#include <utility>
 
 using namespace Castle::Core;
 
@@ -247,11 +248,12 @@ TEST(WallPlacement, ChainGoesOnPastNodesItDoesNotSnapTo)
 
 TEST(WallPlacement, NodeOutsideSnapRadiusIsNotUsed)
 {
+	// 100 from A, and off the wall.
 	Existing Walls;
 	WallPlacement Placement = MakePlacement();
 
-	Placement.Click(Walls.Network, {0.0, 1000.0}, SnapRadius);
-	Placement.Click(Walls.Network, {80.0, 0.0}, SnapRadius);
+	Placement.Click(Walls.Network, {0.0, -1000.0}, SnapRadius);
+	Placement.Click(Walls.Network, {80.0, -60.0}, SnapRadius);
 
 	EXPECT_EQ(Walls.Network.GetNodeCount(), 4u);
 	EXPECT_EQ(Walls.Network.GetNodeWalls(Walls.A).size(), 1u);
@@ -362,4 +364,171 @@ TEST(WallPlacement, ExcludedNodeLeavesTheNextOneToSnapTo)
 	Placement.Hover(Network, {10.0, 0.0}, 100.0);
 	EXPECT_NE(Placement.GetSnapNode(), Near);
 	EXPECT_EQ(Placement.GetSnapNode(), Other);
+}
+
+// Snapping to walls
+
+TEST(WallPlacement, HoverOverAWallReportsWhereItWouldSplit)
+{
+	Existing Walls;
+	WallPlacement Placement = MakePlacement();
+
+	Placement.Hover(Walls.Network, {400.0, 30.0}, SnapRadius);
+
+	EXPECT_FALSE(Placement.GetSnapNode().IsValid());
+	ASSERT_TRUE(Placement.GetSnapWall());
+	EXPECT_EQ(Placement.GetSnapWall()->Wall, Walls.AB);
+	EXPECT_TRUE(IsNearlyEqual(Placement.GetSnapWall()->Position, {400.0, 0.0}));
+
+	Placement.Hover(Walls.Network, {400.0, 60.0}, SnapRadius);
+	EXPECT_FALSE(Placement.GetSnapWall());
+}
+
+TEST(WallPlacement, NodeWinsOverWall)
+{
+	// Over the wall as well as within the snap radius of its end.
+	Existing Walls;
+	WallPlacement Placement = MakePlacement();
+
+	Placement.Hover(Walls.Network, {960.0, 30.0}, SnapRadius);
+
+	EXPECT_EQ(Placement.GetSnapNode(), Walls.B);
+	EXPECT_FALSE(Placement.GetSnapWall());
+}
+
+TEST(WallPlacement, StartOnAWallSplitsIt)
+{
+	Existing Walls;
+	WallPlacement Placement = MakePlacement();
+
+	Placement.Click(Walls.Network, {400.0, 30.0}, SnapRadius);
+	Placement.Hover(Walls.Network, {400.0, 800.0}, SnapRadius);
+
+	// Only in the preview so far.
+	const WallNetwork& Preview = *Placement.GetPreview();
+	EXPECT_EQ(Preview.GetWallCount(), 3u);
+	EXPECT_EQ(Preview.GetNodeCount(), 4u);
+	const NodeId Split = Preview.FindWall(Placement.GetPreviewWall())->NodeA;
+	EXPECT_TRUE(IsNearlyEqual(Preview.FindNode(Split)->Position, {400.0, 0.0}));
+	EXPECT_EQ(Preview.GetNodeWalls(Split).size(), 3u);
+	EXPECT_TRUE(Placement.GetPreviewViolations().empty());
+	EXPECT_EQ(Walls.Network.GetWallCount(), 1u);
+
+	EXPECT_EQ(Placement.Click(Walls.Network, {400.0, 800.0}, SnapRadius), WallPlacement::EClickResult::Committed);
+	EXPECT_EQ(Walls.Network.GetWallCount(), 3u);
+	EXPECT_EQ(Walls.Network.GetNodeWalls(Split).size(), 3u);
+
+	// A free end goes on with the chain.
+	EXPECT_EQ(Placement.GetState(), WallPlacement::EState::PickingEnd);
+}
+
+TEST(WallPlacement, EndOnAWallSplitsItAndEndsTheChain)
+{
+	Existing Walls;
+	WallPlacement Placement = MakePlacement();
+
+	Placement.Click(Walls.Network, {600.0, 800.0}, SnapRadius);
+	EXPECT_EQ(Placement.Click(Walls.Network, {600.0, -40.0}, SnapRadius), WallPlacement::EClickResult::Committed);
+
+	EXPECT_EQ(Walls.Network.GetWallCount(), 3u);
+	EXPECT_EQ(Walls.Network.GetNodeCount(), 4u);
+	const NodeId Split = Walls.Network.FindNearestNode({600.0, 0.0}, 1e-6);
+	ASSERT_TRUE(Split.IsValid());
+	EXPECT_EQ(Walls.Network.GetNodeWalls(Split).size(), 3u);
+	EXPECT_EQ(Walls.Network.GetNodeWalls(Walls.A).size(), 1u);
+	EXPECT_EQ(Walls.Network.GetNodeWalls(Walls.B).size(), 1u);
+
+	EXPECT_EQ(Placement.GetState(), WallPlacement::EState::PickingStart);
+}
+
+TEST(WallPlacement, SplitTooCloseToANodeIsRejected)
+{
+	// The split would be 80 from B, which is outside the node's snap radius but leaves a part below the minimum length.
+	Existing Walls;
+	WallPlacement Placement = MakePlacement();
+
+	Placement.Click(Walls.Network, {920.0, 800.0}, SnapRadius);
+
+	EXPECT_EQ(Placement.Click(Walls.Network, {920.0, -45.0}, SnapRadius), WallPlacement::EClickResult::Rejected);
+	EXPECT_TRUE(Contains(Placement.GetPreviewViolations(), ELimitViolation::TooShort));
+	EXPECT_EQ(Walls.Network.GetWallCount(), 1u);
+}
+
+TEST(WallPlacement, TooSharpJointWithASplitWallIsRejected)
+{
+	// About 13 degrees off the wall.
+	Existing Walls;
+	WallPlacement Placement = MakePlacement();
+
+	Placement.Click(Walls.Network, {0.0, 200.0}, SnapRadius);
+
+	EXPECT_EQ(Placement.Click(Walls.Network, {850.0, -10.0}, SnapRadius), WallPlacement::EClickResult::Rejected);
+	EXPECT_TRUE(Contains(Placement.GetPreviewViolations(), ELimitViolation::JointTooSharp));
+}
+
+TEST(WallPlacement, BothEndsOnTheSameWallSplitItTwice)
+{
+	// Along the wall, so the joints are too sharp; the parts must come out right nonetheless, in either direction.
+	for (const auto& [StartX, EndX] : {std::pair{200.0, 700.0}, std::pair{700.0, 200.0}})
+	{
+		SCOPED_TRACE(StartX);
+		Existing Walls;
+		WallPlacement Placement = MakePlacement();
+
+		Placement.Click(Walls.Network, {StartX, 10.0}, SnapRadius);
+		Placement.Hover(Walls.Network, {EndX, -10.0}, SnapRadius);
+
+		const WallNetwork& Preview = *Placement.GetPreview();
+		EXPECT_EQ(Preview.GetNodeCount(), 4u);
+		EXPECT_EQ(Preview.GetWallCount(), 4u);
+		EXPECT_TRUE(Contains(Placement.GetPreviewViolations(), ELimitViolation::JointTooSharp));
+
+		const Wall* Placed = Preview.FindWall(Placement.GetPreviewWall());
+		EXPECT_TRUE(IsNearlyEqual(Preview.FindNode(Placed->NodeA)->Position, {StartX, 0.0}));
+		EXPECT_TRUE(IsNearlyEqual(Preview.FindNode(Placed->NodeB)->Position, {EndX, 0.0}));
+
+		// The three parts run from A to B one after another.
+		double PartsLength = 0.0;
+		for (const WallId Part : Preview.GetWallIds())
+		{
+			if (Part != Placement.GetPreviewWall())
+			{
+				const WallCurve Reference = *Preview.GetReferenceCurve(Part);
+				EXPECT_GT(Reference.GetEnd().X, Reference.GetStart().X);
+				PartsLength += Reference.GetLength();
+			}
+		}
+		EXPECT_NEAR(PartsLength, 1000.0, 1e-6);
+	}
+}
+
+TEST(WallPlacement, ChordAcrossAnArc)
+{
+	// A half circle around (1000, 0) with radius 1000. The chord from a quarter to three quarters of it meets it at 45 degrees.
+	WallNetwork Network;
+	const WallId Arc = Network.AddWall(Network.AddNode({0.0, 0.0}), Network.AddNode({2000.0, 0.0}), 50.0, 50.0, 1.0);
+	const WallCurve Original = *Network.GetReferenceCurve(Arc);
+	WallPlacement Placement = MakePlacement();
+
+	Placement.Click(Network, Original.PointAt(0.25), SnapRadius);
+	EXPECT_EQ(Placement.Click(Network, Original.PointAt(0.75), SnapRadius), WallPlacement::EClickResult::Committed);
+
+	EXPECT_EQ(Network.GetNodeCount(), 4u);
+	EXPECT_EQ(Network.GetWallCount(), 4u);
+	EXPECT_TRUE(Network.FindNearestNode(Original.PointAt(0.25), 1e-6).IsValid());
+	EXPECT_TRUE(Network.FindNearestNode(Original.PointAt(0.75), 1e-6).IsValid());
+
+	// The arc's three parts stay on its circle and cover all of it.
+	double ArcLength = 0.0;
+	for (const WallId Part : Network.GetWallIds())
+	{
+		const WallCurve Reference = *Network.GetReferenceCurve(Part);
+		if (Reference.IsArc())
+		{
+			EXPECT_TRUE(IsNearlyEqual(Reference.GetCenter(), Original.GetCenter()));
+			EXPECT_NEAR(Reference.GetRadius(), 1000.0, 1e-6);
+			ArcLength += Reference.GetLength();
+		}
+	}
+	EXPECT_NEAR(ArcLength, Original.GetLength(), 1e-6);
 }
