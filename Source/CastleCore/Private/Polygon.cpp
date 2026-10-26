@@ -1,5 +1,7 @@
 #include "CastleCore/Polygon.h"
 
+#include <cmath>
+#include <cstddef>
 #include <utility>
 
 namespace Castle::Core
@@ -23,6 +25,33 @@ namespace Castle::Core
 			Polygon.push_back(PointOnCircle(Center, Radius, 2.0 * Pi * Index / Segments));
 		}
 		return Polygon;
+	}
+
+	void SimplifyPolygon(std::vector<Vec2>& Polygon)
+	{
+		bool bChanged = true;
+		while (bChanged && Polygon.size() >= 3)
+		{
+			bChanged = false;
+			const size_t Count = Polygon.size();
+			for (size_t Index = 0; Index < Count; ++Index)
+			{
+				const Vec2 Previous = Polygon[(Index + Count - 1) % Count];
+				const Vec2 Current = Polygon[Index];
+				const Vec2 Next = Polygon[(Index + 1) % Count];
+
+				const double Span = Distance(Previous, Next);
+				const bool bRedundant = IsNearlyEqual(Current, Next)
+					|| Span <= DistanceTolerance
+					|| std::abs(Cross(Next - Previous, Current - Previous)) / Span <= DistanceTolerance;
+				if (bRedundant)
+				{
+					Polygon.erase(Polygon.begin() + static_cast<std::ptrdiff_t>(Index));
+					bChanged = true;
+					break;
+				}
+			}
+		}
 	}
 
 	std::vector<Vec2> ClipToConvex(const std::vector<Vec2>& Subject, const std::vector<Vec2>& Clip)

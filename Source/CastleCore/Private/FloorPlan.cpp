@@ -1,43 +1,12 @@
 #include "CastleCore/FloorPlan.h"
 
 #include <algorithm>
-#include <cmath>
+#include <utility>
 
 namespace Castle::Core
 {
 	namespace
 	{
-		/**
-		 * Removes repeated points and points lying on the line through their neighbours. That includes spikes running
-		 * out and back along one line, which enclose no area.
-		 */
-		void Simplify(std::vector<Vec2>& Polygon)
-		{
-			bool bChanged = true;
-			while (bChanged && Polygon.size() >= 3)
-			{
-				bChanged = false;
-				const size_t Count = Polygon.size();
-				for (size_t Index = 0; Index < Count; ++Index)
-				{
-					const Vec2 Previous = Polygon[(Index + Count - 1) % Count];
-					const Vec2 Current = Polygon[Index];
-					const Vec2 Next = Polygon[(Index + 1) % Count];
-
-					const double Span = Distance(Previous, Next);
-					const bool bRedundant = IsNearlyEqual(Current, Next)
-						|| Span <= DistanceTolerance
-						|| std::abs(Cross(Next - Previous, Current - Previous)) / Span <= DistanceTolerance;
-					if (bRedundant)
-					{
-						Polygon.erase(Polygon.begin() + static_cast<std::ptrdiff_t>(Index));
-						bChanged = true;
-						break;
-					}
-				}
-			}
-		}
-
 		bool Contains(const std::vector<NodeId>& Nodes, NodeId Id)
 		{
 			return std::find(Nodes.begin(), Nodes.end(), Id) != Nodes.end();
@@ -90,7 +59,7 @@ namespace Castle::Core
 			const size_t Count = NodeJunction.Walls.size();
 			for (size_t Index = 0; Index < Count; ++Index)
 			{
-				const JunctionWall& Attached = NodeJunction.Walls[Index];
+				const WallEnd& Attached = NodeJunction.Walls[Index];
 				const JunctionGap& CounterclockwiseGap = NodeJunction.Gaps[Index];
 				const JunctionGap& ClockwiseGap = NodeJunction.Gaps[(Index + Count - 1) % Count];
 
@@ -98,8 +67,8 @@ namespace Castle::Core
 					Dot(CounterclockwiseGap.Path.front() - NodeJunction.Position, Attached.Direction),
 					Dot(ClockwiseGap.Path.back() - NodeJunction.Position, Attached.Direction)});
 
-				WallBody& Body = Plan.Walls[BodyIndexById[Attached.Id.Value]];
-				(Network.FindWall(Attached.Id)->NodeA == Id ? Body.StartCut : Body.EndCut) = Cut;
+				WallBody& Body = Plan.Walls[BodyIndexById[Attached.Wall.Value]];
+				(Attached.bIsStart ? Body.StartCut : Body.EndCut) = Cut;
 
 				const Vec2 CutCenter = NodeJunction.Position + Attached.Direction * Cut;
 				const Vec2 Across = PerpLeft(Attached.Direction);
@@ -108,7 +77,7 @@ namespace Castle::Core
 				Polygon.insert(Polygon.end(), CounterclockwiseGap.Path.begin(), CounterclockwiseGap.Path.end());
 			}
 
-			Simplify(Polygon);
+			SimplifyPolygon(Polygon);
 			if (Polygon.size() >= 3 && GetSignedArea(Polygon) > DistanceTolerance)
 			{
 				Plan.Nodes.push_back(NodePiece{.Node = Id, .Polygon = std::move(Polygon)});

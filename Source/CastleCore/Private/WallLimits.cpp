@@ -7,13 +7,6 @@ namespace Castle::Core
 {
 	namespace
 	{
-		/** Unit tangent of the wall at the node, pointing away from it. */
-		Vec2 GetTangentAwayFrom(const WallNetwork& Network, WallId AttachedWall, NodeId AtNode)
-		{
-			const WallCurve Reference = *Network.GetReferenceCurve(AttachedWall);
-			return Network.FindWall(AttachedWall)->NodeA == AtNode ? Reference.TangentAt(0.0) : -Reference.TangentAt(1.0);
-		}
-
 		// A value exactly at a limit passes, even when rounding nudges it just past.
 		bool IsBelow(double Value, double Min, double Tolerance)
 		{
@@ -117,28 +110,18 @@ namespace Castle::Core
 
 	std::optional<double> GetSmallestJointAngle(const WallNetwork& Network, NodeId Id)
 	{
-		const std::span<const WallId> Walls = Network.GetNodeWalls(Id);
+		const std::vector<WallEnd> Walls = Network.GetWallsAround(Id);
 		if (Walls.size() < 2)
 		{
 			return std::nullopt;
 		}
 
-		std::vector<Vec2> Tangents;
-		Tangents.reserve(Walls.size());
-		for (const WallId Attached : Walls)
+		// The angle between any two walls spans one or more gaps between neighbours, so the smallest angle is the smallest
+		// gap, at most Pi as the gaps add up to a full turn. The last gap wraps around past +X.
+		double Smallest = Walls.front().DirectionAngle + 2.0 * Pi - Walls.back().DirectionAngle;
+		for (size_t Index = 1; Index < Walls.size(); ++Index)
 		{
-			Tangents.push_back(GetTangentAwayFrom(Network, Attached, Id));
-		}
-
-		// The smallest angle over all pairs is always between two angular neighbours, so no sorting is needed.
-		double Smallest = Pi;
-		for (size_t First = 0; First < Tangents.size(); ++First)
-		{
-			for (size_t Second = First + 1; Second < Tangents.size(); ++Second)
-			{
-				const double Angle = std::atan2(std::abs(Cross(Tangents[First], Tangents[Second])), Dot(Tangents[First], Tangents[Second]));
-				Smallest = std::min(Smallest, Angle);
-			}
+			Smallest = std::min(Smallest, Walls[Index].DirectionAngle - Walls[Index - 1].DirectionAngle);
 		}
 		return Smallest;
 	}

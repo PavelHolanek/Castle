@@ -35,11 +35,14 @@ input (UE) -> WallPlacement (core) -> WallNetwork (authoritative model) -> Junct
   - `Vec2.h`: vector, tolerances, angles.
   - `WallCurve`: straight line or circular arc (bulge), exact offsets, projection of a point, tessellation.
   - `WallNetwork`: nodes and walls with stable ids. Walls meet only at shared nodes; splitting and merging walls,
-    finding the wall under a point.
+    finding the wall under a point, the walls around a node seen from it and sorted counterclockwise (`WallEnd`,
+    `GetWallsAround`), which junctions and limits share.
   - `WallLimits`: limits (length, width, arcs, smallest joint angle 30°).
   - `Junction`: the junction solver, gaps between neighbouring walls at a node.
   - `FloorPlan`: splits the floor area into wall bodies and node pieces.
-  - `Polygon`: area, regular polygon, clipping to a convex shape.
+  - `Polygon`: area, regular polygon, simplification, clipping to a convex shape.
+  - `Intersect`: crossings of lines and of a ray with a circle. Geometry shared by several parts goes here or in
+    `Polygon`, not into an anonymous namespace.
   - `WallPlacement`: state of the build tool (preview, chaining, snapping).
   - `WallDemolition`: removing a wall as the player does, with leftover nodes tidied up.
   - `WallOutline`: raw outlines for debugging.

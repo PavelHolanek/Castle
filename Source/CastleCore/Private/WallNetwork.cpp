@@ -277,6 +277,41 @@ namespace Castle::Core
 		return {};
 	}
 
+	std::vector<WallEnd> WallNetwork::GetWallsAround(NodeId Id) const
+	{
+		std::vector<WallEnd> Ends;
+		for (const WallId Attached : GetNodeWalls(Id))
+		{
+			const Wall& Data = *FindWall(Attached);
+			const WallCurve Reference = *GetReferenceCurve(Attached);
+			const bool bIsStart = Data.NodeA == Id;
+			const Vec2 Direction = bIsStart ? Reference.TangentAt(0.0) : -Reference.TangentAt(1.0);
+
+			double DirectionAngle = std::atan2(Direction.Y, Direction.X);
+			if (DirectionAngle < 0.0)
+			{
+				DirectionAngle += 2.0 * Pi;
+			}
+
+			Ends.push_back(WallEnd{
+				.Wall = Attached,
+				.bIsStart = bIsStart,
+				.Direction = Direction,
+				.DirectionAngle = DirectionAngle,
+				.WidthCounterclockwise = bIsStart ? Data.WidthLeft : Data.WidthRight,
+				.WidthClockwise = bIsStart ? Data.WidthRight : Data.WidthLeft,
+				.Length = Reference.GetLength(),
+				.bIsArc = Reference.IsArc(),
+			});
+		}
+
+		std::stable_sort(Ends.begin(), Ends.end(), [](const WallEnd& A, const WallEnd& B)
+		{
+			return A.DirectionAngle < B.DirectionAngle;
+		});
+		return Ends;
+	}
+
 	double WallNetwork::GetWidestWall(NodeId Id) const
 	{
 		double Widest = 0.0;

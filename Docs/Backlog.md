@@ -67,10 +67,6 @@ Remove items once done; decisions move into the code or the comments next to it.
 - **Several copies.** The build tool, the demolish tool and the drawing each use their own default `WallLimits`. Once
   the limits can change (settings, game modes), keep them in one place, e.g. the wall subsystem.
 - Relations between limits aren't checked (e.g. minimum wall length against the width of neighbouring walls).
-- **The joint angle is computed twice.** `GetSmallestJointAngle` takes angles pairwise, the junctions from sorted
-  directions, and a wall's direction away from a node is written out in both `WallLimits.cpp` and `Junction.cpp`.
-  Unify (minimum of `Junction::Gaps[i].Angle`, or a helper in `WallNetwork`). The comment at the loop in
-  `GetSmallestJointAngle` is misleading: neighbourhood isn't used.
 
 ### Curves (`Source/CastleCore/Public/CastleCore/WallCurve.h`)
 

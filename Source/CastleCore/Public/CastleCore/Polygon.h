@@ -14,6 +14,12 @@ namespace Castle::Core
 	CASTLECORE_API std::vector<Vec2> MakeRegularPolygon(Vec2 Center, double Radius, int Segments);
 
 	/**
+	 * Removes repeated points and points lying on the line through their neighbours. That includes spikes running out
+	 * and back along one line, which enclose no area. A polygon of no area may end up with fewer than three points.
+	 */
+	CASTLECORE_API void SimplifyPolygon(std::vector<Vec2>& Polygon);
+
+	/**
 	 * The part of Subject inside the convex, counterclockwise polygon Clip (Sutherland-Hodgman). Empty when they don't
 	 * overlap. A concave Subject cut into several parts comes out as one outline joined along Clip's edges.
 	 */

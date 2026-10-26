@@ -107,27 +107,14 @@ TEST(Junction, WallsAreSortedCounterclockwise)
 
 	const Junction Result = Joint.Build();
 	ASSERT_EQ(Result.Walls.size(), 3u);
-	EXPECT_EQ(Result.Walls[0].Id, At20);
-	EXPECT_EQ(Result.Walls[1].Id, At100);
-	EXPECT_EQ(Result.Walls[2].Id, At200);
+	EXPECT_EQ(Result.Walls[0].Wall, At20);
+	EXPECT_EQ(Result.Walls[1].Wall, At100);
+	EXPECT_EQ(Result.Walls[2].Wall, At200);
 
 	ASSERT_EQ(Result.Gaps.size(), 3u);
 	EXPECT_NEAR(Result.Gaps[0].Angle, DegreesToRadians(80.0), Tolerance);
 	EXPECT_NEAR(Result.Gaps[1].Angle, DegreesToRadians(100.0), Tolerance);
 	EXPECT_NEAR(Result.Gaps[2].Angle, DegreesToRadians(180.0), Tolerance);
-}
-
-TEST(Junction, WallEndingAtNodeIsSeenBackwards)
-{
-	Star Joint;
-	Joint.AddIncoming(90.0, 10.0, 30.0);
-
-	const Junction Result = Joint.Build();
-	const JunctionWall& Seen = Result.Walls[0];
-	ExpectNear(Seen.Direction, {0.0, 1.0});
-	EXPECT_NEAR(Seen.DirectionAngle, Pi / 2.0, Tolerance);
-	EXPECT_EQ(Seen.WidthCounterclockwise, 30.0);
-	EXPECT_EQ(Seen.WidthClockwise, 10.0);
 }
 
 // Up to 90 degrees

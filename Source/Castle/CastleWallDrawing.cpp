@@ -224,8 +224,8 @@ namespace CastleWallDrawing
 				{
 					continue;
 				}
-				const WallId First = NodeJunction.Walls[GapIndex].Id;
-				const WallId Second = NodeJunction.Walls[(GapIndex + 1) % NodeJunction.Walls.size()].Id;
+				const WallId First = NodeJunction.Walls[GapIndex].Wall;
+				const WallId Second = NodeJunction.Walls[(GapIndex + 1) % NodeJunction.Walls.size()].Wall;
 				FString Description = FString::Printf(TEXT("Node %u, walls %d -> %d, %.1f deg, %s: %s"),
 					Id.Value, WallLabel(First), WallLabel(Second), FMath::RadiansToDegrees(Gap.Angle), GetShapeName(Gap.Shape),
 					*FString::Join(Points, TEXT(" -> ")));

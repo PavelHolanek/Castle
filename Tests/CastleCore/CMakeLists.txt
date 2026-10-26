@@ -40,6 +40,7 @@ endif()
 
 add_executable(CastleCoreTests
 	FloorPlanTests.cpp
+	IntersectTests.cpp
 	JunctionTests.cpp
 	PolygonTests.cpp
 	WallCurveTests.cpp

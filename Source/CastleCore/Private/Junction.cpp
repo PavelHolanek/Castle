@@ -1,6 +1,7 @@
 #include "CastleCore/Junction.h"
 
-#include <algorithm>
+#include "CastleCore/Intersect.h"
+
 #include <cmath>
 #include <utility>
 
@@ -8,39 +9,6 @@ namespace Castle::Core
 {
 	namespace
 	{
-		/** Empty when the lines are parallel. */
-		std::optional<Vec2> IntersectLines(Vec2 PointA, Vec2 DirectionA, Vec2 PointB, Vec2 DirectionB)
-		{
-			const double Denominator = Cross(DirectionA, DirectionB);
-			if (std::abs(Denominator) <= AngleTolerance)
-			{
-				return std::nullopt;
-			}
-			return PointA + DirectionA * (Cross(PointB - PointA, DirectionB) / Denominator);
-		}
-
-		/**
-		 * Point on the ray from RayStart along the unit RayDirection at Radius from Center, beyond RayStart.
-		 * Empty when the ray doesn't get that far from Center.
-		 */
-		std::optional<Vec2> IntersectRayWithCircle(Vec2 RayStart, Vec2 RayDirection, Vec2 Center, double Radius)
-		{
-			const Vec2 FromCenter = RayStart - Center;
-			const double Projection = Dot(FromCenter, RayDirection);
-			const double Discriminant = Projection * Projection - Dot(FromCenter, FromCenter) + Radius * Radius;
-			if (Discriminant < 0.0)
-			{
-				return std::nullopt;
-			}
-
-			const double Along = -Projection + std::sqrt(Discriminant);
-			if (Along < 0.0)
-			{
-				return std::nullopt;
-			}
-			return RayStart + RayDirection * Along;
-		}
-
 		/** Adds Point to the end of Path unless it coincides with the last point. */
 		void AppendPoint(std::vector<Vec2>& Path, Vec2 Point)
 		{
@@ -53,8 +21,8 @@ namespace Castle::Core
 		/** The two walls around a gap and their sides facing it. */
 		struct GapSides
 		{
-			const JunctionWall& First;
-			const JunctionWall& Second;
+			const WallEnd& First;
+			const WallEnd& Second;
 
 			double FirstWidth;
 			double SecondWidth;
@@ -69,7 +37,7 @@ namespace Castle::Core
 		 * Crossing is where the two sides intersect when continued; empty when they are parallel or the straight
 		 * continuation of the wider side can't reach the thinner one.
 		 */
-		std::pair<Vec2, EGapShape> ExtendSide(Vec2 Start, double WideWidth, Vec2 ThinStart, const JunctionWall& Thin,
+		std::pair<Vec2, EGapShape> ExtendSide(Vec2 Start, double WideWidth, Vec2 ThinStart, const WallEnd& Thin,
 			std::optional<Vec2> Crossing, const JunctionSettings& Settings)
 		{
 			const double MaxLength = Settings.MaxExtensionFactor * WideWidth;
@@ -189,13 +157,13 @@ namespace Castle::Core
 			AppendPoint(Gap.Path, Sides.SecondStart);
 		}
 
-		JunctionGap ResolveGap(Vec2 Position, const std::vector<JunctionWall>& Walls, size_t FirstIndex, size_t SecondIndex, double Angle,
+		JunctionGap ResolveGap(Vec2 Position, const std::vector<WallEnd>& Walls, size_t FirstIndex, size_t SecondIndex, double Angle,
 			ECornerStyle CornerStyle, const JunctionSettings& Settings)
 		{
 			JunctionGap Gap{.Angle = Angle};
 
-			const JunctionWall& First = Walls[FirstIndex];
-			const JunctionWall& Second = Walls[SecondIndex];
+			const WallEnd& First = Walls[FirstIndex];
+			const WallEnd& Second = Walls[SecondIndex];
 			if (First.bIsArc || Second.bIsArc || Angle <= AngleTolerance || Angle >= 2.0 * Pi - AngleTolerance)
 			{
 				return Gap;
@@ -231,36 +199,7 @@ namespace Castle::Core
 			return std::nullopt;
 		}
 
-		Junction Result{.Node = Id, .Position = Found->Position};
-		for (const WallId AttachedWall : Found->Walls)
-		{
-			const Wall& Data = *Network.FindWall(AttachedWall);
-			const WallCurve Reference = *Network.GetReferenceCurve(AttachedWall);
-			const bool bStartsHere = Data.NodeA == Id;
-			const Vec2 Direction = bStartsHere ? Reference.TangentAt(0.0) : -Reference.TangentAt(1.0);
-
-			double DirectionAngle = std::atan2(Direction.Y, Direction.X);
-			if (DirectionAngle < 0.0)
-			{
-				DirectionAngle += 2.0 * Pi;
-			}
-
-			Result.Walls.push_back(JunctionWall{
-				.Id = AttachedWall,
-				.Direction = Direction,
-				.DirectionAngle = DirectionAngle,
-				.WidthCounterclockwise = bStartsHere ? Data.WidthLeft : Data.WidthRight,
-				.WidthClockwise = bStartsHere ? Data.WidthRight : Data.WidthLeft,
-				.Length = Reference.GetLength(),
-				.bIsArc = Reference.IsArc(),
-			});
-		}
-
-		std::stable_sort(Result.Walls.begin(), Result.Walls.end(), [](const JunctionWall& A, const JunctionWall& B)
-		{
-			return A.DirectionAngle < B.DirectionAngle;
-		});
-
+		Junction Result{.Node = Id, .Position = Found->Position, .Walls = Network.GetWallsAround(Id)};
 		const size_t Count = Result.Walls.size();
 		for (size_t Index = 0; Index < Count; ++Index)
 		{

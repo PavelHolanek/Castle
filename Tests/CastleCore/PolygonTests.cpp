@@ -37,6 +37,35 @@ TEST(Polygon, RegularPolygonApproachesTheCircle)
 	EXPECT_NEAR(GetSignedArea(MakeRegularPolygon({0.0, 0.0}, 1.0, 360)), Pi, 1e-3);
 }
 
+TEST(Polygon, SimplifyLeavesAPlainPolygonAsItIs)
+{
+	std::vector<Vec2> Square = MakeSquare({0.0, 0.0}, 10.0);
+	SimplifyPolygon(Square);
+	EXPECT_EQ(Square, MakeSquare({0.0, 0.0}, 10.0));
+}
+
+TEST(Polygon, SimplifyRemovesRepeatedAndCollinearPoints)
+{
+	std::vector<Vec2> Square = {{0.0, 0.0}, {0.0, 0.0}, {10.0, 0.0}, {10.0, 4.0}, {10.0, 10.0}, {0.0, 10.0}};
+	SimplifyPolygon(Square);
+	EXPECT_EQ(Square, MakeSquare({0.0, 0.0}, 10.0));
+}
+
+TEST(Polygon, SimplifyRemovesASpike)
+{
+	// Out from the bottom edge and back along the same line.
+	std::vector<Vec2> Square = {{0.0, 0.0}, {5.0, 0.0}, {5.0, -3.0}, {5.0, 0.0}, {10.0, 0.0}, {10.0, 10.0}, {0.0, 10.0}};
+	SimplifyPolygon(Square);
+	EXPECT_EQ(Square, MakeSquare({0.0, 0.0}, 10.0));
+}
+
+TEST(Polygon, SimplifyOfNoAreaLeavesTooFewPoints)
+{
+	std::vector<Vec2> Line = {{0.0, 0.0}, {5.0, 0.0}, {10.0, 0.0}};
+	SimplifyPolygon(Line);
+	EXPECT_LT(Line.size(), 3u);
+}
+
 TEST(Polygon, ClipKeepsTheOverlap)
 {
 	const std::vector<Vec2> Clipped = ClipToConvex(MakeSquare({0.0, 0.0}, 10.0), MakeSquare({5.0, 5.0}, 10.0));

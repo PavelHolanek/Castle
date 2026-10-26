@@ -156,6 +156,7 @@ TEST(WallNetwork, UnknownIdsFindNothing)
 	EXPECT_EQ(Network.FindNode(NodeId{}), nullptr);
 	EXPECT_EQ(Network.FindWall(WallId{7}), nullptr);
 	EXPECT_TRUE(Network.GetNodeWalls(NodeId{3}).empty());
+	EXPECT_TRUE(Network.GetWallsAround(NodeId{3}).empty());
 	EXPECT_FALSE(Network.GetReferenceCurve(WallId{}));
 	EXPECT_TRUE(Network.GetWallIds().empty());
 }
@@ -171,6 +172,78 @@ TEST(WallNetwork, WidestWallAtANode)
 	EXPECT_EQ(Network.GetWidestWall(Center), 200.0);
 	EXPECT_EQ(Network.GetWidestWall(Alone), 0.0);
 	EXPECT_EQ(Network.GetWidestWall(NodeId{}), 0.0);
+}
+
+TEST(WallNetwork, WallsAroundANodeAreSortedCounterclockwise)
+{
+	WallNetwork Network;
+	const NodeId Center = Network.AddNode({0.0, 0.0});
+	const WallId At200 = Network.AddWall(Center, Network.AddNode(PointOnCircle({0.0, 0.0}, 1000.0, DegreesToRadians(200.0))), 50.0, 50.0);
+	const WallId At20 = Network.AddWall(Center, Network.AddNode(PointOnCircle({0.0, 0.0}, 1000.0, DegreesToRadians(20.0))), 50.0, 50.0);
+	const WallId At100 = Network.AddWall(Network.AddNode(PointOnCircle({0.0, 0.0}, 1000.0, DegreesToRadians(100.0))), Center, 50.0, 50.0);
+
+	const std::vector<WallEnd> Around = Network.GetWallsAround(Center);
+	ASSERT_EQ(Around.size(), 3u);
+	EXPECT_EQ(Around[0].Wall, At20);
+	EXPECT_EQ(Around[1].Wall, At100);
+	EXPECT_EQ(Around[2].Wall, At200);
+	EXPECT_NEAR(Around[0].DirectionAngle, DegreesToRadians(20.0), 1e-9);
+	EXPECT_NEAR(Around[1].DirectionAngle, DegreesToRadians(100.0), 1e-9);
+	EXPECT_NEAR(Around[2].DirectionAngle, DegreesToRadians(200.0), 1e-9);
+	EXPECT_TRUE(Around[0].bIsStart);
+	EXPECT_FALSE(Around[1].bIsStart);
+}
+
+TEST(WallNetwork, WallEndingAtNodeIsSeenBackwards)
+{
+	WallNetwork Network;
+	const NodeId Center = Network.AddNode({0.0, 0.0});
+	Network.AddWall(Network.AddNode({0.0, 1000.0}), Center, 10.0, 30.0);
+
+	const std::vector<WallEnd> Around = Network.GetWallsAround(Center);
+	ASSERT_EQ(Around.size(), 1u);
+	EXPECT_FALSE(Around[0].bIsStart);
+	EXPECT_TRUE(IsNearlyEqual(Around[0].Direction, {0.0, 1.0}));
+	EXPECT_NEAR(Around[0].DirectionAngle, Pi / 2.0, 1e-9);
+	EXPECT_EQ(Around[0].WidthCounterclockwise, 30.0);
+	EXPECT_EQ(Around[0].WidthClockwise, 10.0);
+	EXPECT_NEAR(Around[0].Length, 1000.0, 1e-9);
+	EXPECT_FALSE(Around[0].bIsArc);
+}
+
+TEST(WallNetwork, ArcIsSeenAlongItsTangentAtTheNode)
+{
+	// A counterclockwise half circle bows out to the right, here below the X axis. It leaves A heading down and arrives
+	// at B heading up, so from either node it is seen heading down.
+	WallNetwork Network;
+	const NodeId A = Network.AddNode({0.0, 0.0});
+	const NodeId B = Network.AddNode({1000.0, 0.0});
+	Network.AddWall(A, B, 50.0, 50.0, 1.0);
+
+	for (const NodeId End : {A, B})
+	{
+		const std::vector<WallEnd> Around = Network.GetWallsAround(End);
+		ASSERT_EQ(Around.size(), 1u);
+		EXPECT_TRUE(IsNearlyEqual(Around[0].Direction, {0.0, -1.0}));
+		EXPECT_NEAR(Around[0].DirectionAngle, 1.5 * Pi, 1e-9);
+		EXPECT_NEAR(Around[0].Length, 500.0 * Pi, 1e-9);
+		EXPECT_TRUE(Around[0].bIsArc);
+	}
+}
+
+TEST(WallNetwork, WallsAroundInTheSameDirectionKeepTheirOrder)
+{
+	WallNetwork Network;
+	const NodeId Center = Network.AddNode({0.0, 0.0});
+	const WallId Up = Network.AddWall(Center, Network.AddNode({0.0, 1000.0}), 50.0, 50.0);
+	const WallId Long = Network.AddWall(Center, Network.AddNode({1000.0, 0.0}), 50.0, 50.0);
+	const WallId Short = Network.AddWall(Center, Network.AddNode({500.0, 0.0}), 50.0, 50.0);
+
+	const std::vector<WallEnd> Around = Network.GetWallsAround(Center);
+	ASSERT_EQ(Around.size(), 3u);
+	EXPECT_EQ(Around[0].Wall, Long);
+	EXPECT_EQ(Around[1].Wall, Short);
+	EXPECT_EQ(Around[2].Wall, Up);
 }
 
 TEST(WallNetwork, SplitWallKeepsItsIdForTheFirstPart)

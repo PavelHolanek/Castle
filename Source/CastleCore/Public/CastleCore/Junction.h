@@ -15,30 +15,6 @@ namespace Castle::Core
 		double MaxExtensionFactor = 2.0;
 	};
 
-	/** A wall attached to a junction node, seen from the node. */
-	struct JunctionWall
-	{
-		WallId Id;
-
-		/** Unit tangent of the reference line at the node, pointing away from it. */
-		Vec2 Direction;
-
-		/** Angle of Direction, counterclockwise from +X, in [0, 2 Pi). */
-		double DirectionAngle = 0.0;
-
-		/**
-		 * Widths on the counterclockwise (left of Direction) and clockwise (right of Direction) side.
-		 * For a wall that ends at the node these are its WidthRight and WidthLeft, since it runs towards the node.
-		 */
-		double WidthCounterclockwise = 0.0;
-		double WidthClockwise = 0.0;
-
-		/** Length of the reference line. */
-		double Length = 0.0;
-
-		bool bIsArc = false;
-	};
-
 	enum class EGapShape
 	{
 		/** Not resolved yet: arcs, or the free end of a single wall. */
@@ -94,8 +70,8 @@ namespace Castle::Core
 		NodeId Node;
 		Vec2 Position;
 
-		/** Sorted counterclockwise by DirectionAngle. */
-		std::vector<JunctionWall> Walls;
+		/** Sorted counterclockwise, see WallNetwork::GetWallsAround. */
+		std::vector<WallEnd> Walls;
 
 		/** Gaps[i] lies between Walls[i] and Walls[(i + 1) % Walls.size()]. */
 		std::vector<JunctionGap> Gaps;
