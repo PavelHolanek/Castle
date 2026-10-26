@@ -1,0 +1,56 @@
+# Builds the plain C++ core (Source/CastleCore) without Unreal and runs its unit tests on every supported platform:
+# Windows with MSVC, as in development, and Linux with GCC and Clang. See Tests/CastleCore/CMakeLists.txt.
+
+name: Core tests
+
+on:
+  push:
+    paths:
+      - 'Source/CastleCore/**'
+      - 'Tests/CastleCore/**'
+      - '.github/workflows/core-tests.yml'
+  pull_request:
+    paths:
+      - 'Source/CastleCore/**'
+      - 'Tests/CastleCore/**'
+      - '.github/workflows/core-tests.yml'
+  # The "Run workflow" button on the Actions tab.
+  workflow_dispatch:
+
+# A newer push to the same branch cancels a run still in progress.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: ${{ matrix.name }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      # Let every platform finish, so one failure doesn't hide the others.
+      fail-fast: false
+      matrix:
+        include:
+          - name: Windows MSVC
+            os: windows-latest
+          - name: Linux GCC
+            os: ubuntu-latest
+            cxx: g++
+          - name: Linux Clang
+            os: ubuntu-latest
+            cxx: clang++
+
+    steps:
+      # Without Git LFS: the tests need no assets, and LFS downloads count against the account's quota.
+      - uses: actions/checkout@v5
+
+      - name: Configure
+        env:
+          CXX: ${{ matrix.cxx }}
+        run: cmake -S Tests/CastleCore -B Tests/CastleCore/build -DCMAKE_BUILD_TYPE=Debug
+
+      - name: Build
+        run: cmake --build Tests/CastleCore/build --config Debug --parallel
+
+      - name: Test
+        run: ctest --test-dir Tests/CastleCore/build -C Debug --output-on-failure

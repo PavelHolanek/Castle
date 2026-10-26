@@ -33,7 +33,9 @@ if(MSVC)
 	# Same warning level as UnrealBuildTool, and no RTTI as in Unreal modules.
 	target_compile_options(CastleCore PRIVATE /W4 /WX /GR- /permissive-)
 else()
-	target_compile_options(CastleCore PRIVATE -Wall -Wextra -Wshadow -Werror -fno-rtti)
+	# The core leaves fields out of designated initializers on purpose, to keep their defaults; newer Clang warns about
+	# that under -Wextra. MSVC has no such warning, so turning it off keeps all compilers alike.
+	target_compile_options(CastleCore PRIVATE -Wall -Wextra -Wshadow -Werror -fno-rtti -Wno-missing-field-initializers)
 endif()
 
 add_executable(CastleCoreTests

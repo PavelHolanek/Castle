@@ -99,6 +99,9 @@ input (UE) -> WallPlacement (core) -> WallNetwork (authoritative model) -> Junct
   "$CMAKE/cmake.exe" --build Tests/CastleCore/build --config Debug
   "$CMAKE/ctest.exe" --test-dir Tests/CastleCore/build -C Debug --output-on-failure
   ```
+- **CI:** `.github/workflows/core-tests.yml` runs the core tests on GitHub on Windows (MSVC) and Linux (GCC, Clang)
+  for every push that touches the core. Linux is case sensitive and GCC/Clang are stricter, so a core change isn't
+  finished until it passes there too. Only the core is checked; the Unreal layer isn't built on Linux yet.
 - **Unreal build:** always the **`CastleEditor`** target. The `Castle` game target is monolithic and hides DLL export
   errors.
   ```
