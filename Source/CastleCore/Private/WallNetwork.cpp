@@ -2,9 +2,23 @@
 
 #include <algorithm>
 #include <cmath>
+#include <utility>
 
 namespace Castle::Core
 {
+	namespace
+	{
+		/** The same wall running the other way. */
+		Wall Reversed(const Wall& Original)
+		{
+			Wall Result = Original;
+			std::swap(Result.NodeA, Result.NodeB);
+			std::swap(Result.WidthLeft, Result.WidthRight);
+			Result.Bulge = -Original.Bulge;
+			return Result;
+		}
+	}
+
 	NodeId WallNetwork::AddNode(Vec2 Position)
 	{
 		const NodeId Id{static_cast<uint32_t>(Nodes.size())};
@@ -63,6 +77,62 @@ namespace Castle::Core
 		Walls.push_back(Second);
 		++WallCount;
 		return Middle;
+	}
+
+	WallId WallNetwork::MergeWalls(NodeId Id)
+	{
+		const Node* Found = FindNode(Id);
+		if (!Found || Found->Walls.size() != 2)
+		{
+			return {};
+		}
+
+		// Both walls as if running through the node: the kept one into it, the dropped one out of it.
+		const WallId KeptId = std::min(Found->Walls[0], Found->Walls[1]);
+		const WallId DroppedId = std::max(Found->Walls[0], Found->Walls[1]);
+		const Wall& Kept = *FindWall(KeptId);
+		const Wall& Dropped = *FindWall(DroppedId);
+		const bool bKeptRunsIn = Kept.NodeB == Id;
+		const Wall Into = bKeptRunsIn ? Kept : Reversed(Kept);
+		const Wall OutOf = Dropped.NodeA == Id ? Dropped : Reversed(Dropped);
+		if (Into.NodeA == OutOf.NodeB
+			|| std::abs(Into.WidthLeft - OutOf.WidthLeft) > DistanceTolerance
+			|| std::abs(Into.WidthRight - OutOf.WidthRight) > DistanceTolerance)
+		{
+			return {};
+		}
+
+		const WallCurve First = WallCurve::FromBulge(FindNode(Into.NodeA)->Position, Found->Position, Into.Bulge);
+		const WallCurve Second = WallCurve::FromBulge(Found->Position, FindNode(OutOf.NodeB)->Position, OutOf.Bulge);
+		const Vec2 TangentIn = First.TangentAt(1.0);
+		const Vec2 TangentOut = Second.TangentAt(0.0);
+		if (First.IsArc() != Second.IsArc() || std::abs(Cross(TangentIn, TangentOut)) > AngleTolerance || Dot(TangentIn, TangentOut) <= 0.0)
+		{
+			return {};
+		}
+
+		// Included angles add up, and the bulge is the tangent of a quarter of it. A full circle can't be one wall.
+		const double QuarterAngle = First.IsArc() ? std::atan(Into.Bulge) + std::atan(OutOf.Bulge) : 0.0;
+		if (First.IsArc()
+			&& (!IsNearlyEqual(First.GetCenter(), Second.GetCenter())
+				|| std::abs(First.GetRadius() - Second.GetRadius()) > DistanceTolerance
+				|| std::abs(QuarterAngle) >= 0.5 * Pi - AngleTolerance))
+		{
+			return {};
+		}
+
+		Wall Merged = Into;
+		Merged.NodeB = OutOf.NodeB;
+		Merged.Bulge = std::tan(QuarterAngle);
+
+		std::vector<WallId>& AtFarEnd = FindNodeMutable(OutOf.NodeB)->Walls;
+		std::replace(AtFarEnd.begin(), AtFarEnd.end(), DroppedId, KeptId);
+		Walls[KeptId.Value] = bKeptRunsIn ? Merged : Reversed(Merged);
+		Walls[DroppedId.Value].reset();
+		--WallCount;
+		Nodes[Id.Value].reset();
+		--NodeCount;
+		return KeptId;
 	}
 
 	bool WallNetwork::MoveNode(NodeId Id, Vec2 Position)

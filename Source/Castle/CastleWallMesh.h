@@ -45,7 +45,8 @@ namespace CastleWallMesh
 	 * network's are to the drawing transform. A null Network empties and hides Mesh.
 	 *
 	 * What breaks Options' limits shows in FaultColor. Walls meeting at a node outside the limits end in plain caps
-	 * there, covered by the node's joint cut down to FaultJointReach.
+	 * there, covered by the node's joint cut down to FaultJointReach. The bodies of Options' highlighted walls show in
+	 * CastleWallDrawing::HighlightColor; their node pieces don't, as they belong to the nodes.
 	 */
 	void ShowWalls(UDynamicMeshComponent& Mesh, const Castle::Core::WallNetwork* Network, const FCastleWallDrawOptions& Options,
 		const FCastleWallStyle& Style, UMaterialInterface* BaseMaterial);

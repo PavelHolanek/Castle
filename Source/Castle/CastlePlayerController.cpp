@@ -4,11 +4,16 @@
 #include "CastleCoreConversion.h"
 #include "CastleViewModeWidget.h"
 #include "CastleWallBuildComponent.h"
+#include "CastleWallDemolishComponent.h"
 #include "CastleWallSubsystem.h"
 #include "DrawDebugHelpers.h"
 #include "Engine/Engine.h"
+#include "Engine/LocalPlayer.h"
 #include "Engine/World.h"
 #include "EnhancedInputComponent.h"
+#include "EnhancedInputSubsystems.h"
+#include "InputAction.h"
+#include "InputMappingContext.h"
 
 namespace
 {
@@ -35,6 +40,7 @@ ACastlePlayerController::ACastlePlayerController()
 	bShowMouseCursor = true;
 
 	WallBuild = CreateDefaultSubobject<UCastleWallBuildComponent>(TEXT("WallBuild"));
+	WallDemolish = CreateDefaultSubobject<UCastleWallDemolishComponent>(TEXT("WallDemolish"));
 }
 
 void ACastlePlayerController::BeginPlay()
@@ -45,10 +51,12 @@ void ACastlePlayerController::BeginPlay()
 	InputMode.SetHideCursorDuringCapture(false);
 	SetInputMode(InputMode);
 
+	SetActiveTool(WallBuild);
+
 	if (IsLocalController())
 	{
 		Toolbar = CreateWidget<UCastleBuildToolbarWidget>(this, UCastleBuildToolbarWidget::StaticClass());
-		Toolbar->SetTool(WallBuild);
+		Toolbar->SetController(this);
 		Toolbar->AddToViewport();
 
 #if !UE_BUILD_SHIPPING
@@ -62,7 +70,78 @@ void ACastlePlayerController::SetupInputComponent()
 {
 	Super::SetupInputComponent();
 
-	WallBuild->SetupInput(*CastChecked<UEnhancedInputComponent>(InputComponent));
+	UEnhancedInputComponent& Input = *CastChecked<UEnhancedInputComponent>(InputComponent);
+	WallBuild->SetupInput(Input);
+	WallDemolish->SetupInput(Input);
+
+	if (!ToolMappingContext)
+	{
+		CreateToolMappings();
+	}
+	if (UEnhancedInputLocalPlayerSubsystem* Subsystem = ULocalPlayer::GetSubsystem<UEnhancedInputLocalPlayerSubsystem>(GetLocalPlayer()))
+	{
+		Subsystem->AddMappingContext(ToolMappingContext, 1);
+	}
+
+	for (int32 Index = 0; Index < SelectWallTypeActions.Num(); ++Index)
+	{
+		Input.BindAction(SelectWallTypeActions[Index], ETriggerEvent::Started, this, &ACastlePlayerController::SelectWallType, Index);
+	}
+	Input.BindAction(ToggleDemolishAction, ETriggerEvent::Started, this, &ACastlePlayerController::ToggleDemolish);
+}
+
+void ACastlePlayerController::CreateToolMappings()
+{
+	ToolMappingContext = NewObject<UInputMappingContext>(this, TEXT("IMC_Tools"));
+
+	const FKey TypeKeys[] = {EKeys::One, EKeys::Two, EKeys::Three, EKeys::Four, EKeys::Five, EKeys::Six, EKeys::Seven, EKeys::Eight, EKeys::Nine};
+	const int32 TypeCount = FMath::Min(WallBuild->GetWallTypes().Num(), static_cast<int32>(UE_ARRAY_COUNT(TypeKeys)));
+	for (int32 Index = 0; Index < TypeCount; ++Index)
+	{
+		UInputAction* Action = NewObject<UInputAction>(this, FName(TEXT("IA_SelectWallType"), Index + 1));
+		ToolMappingContext->MapKey(Action, TypeKeys[Index]);
+		SelectWallTypeActions.Add(Action);
+	}
+
+	ToggleDemolishAction = NewObject<UInputAction>(this, TEXT("IA_ToggleDemolish"));
+	ToolMappingContext->MapKey(ToggleDemolishAction, EKeys::X);
+}
+
+void ACastlePlayerController::SetActiveTool(UCastleToolComponent* Tool)
+{
+	if (Tool == ActiveTool)
+	{
+		return;
+	}
+
+	if (ActiveTool)
+	{
+		ActiveTool->Deactivate();
+	}
+	ActiveTool = Tool;
+	if (ActiveTool)
+	{
+		ActiveTool->Activate();
+	}
+	OnActiveToolChanged.Broadcast(ActiveTool);
+}
+
+void ACastlePlayerController::SelectWallType(int32 Index)
+{
+	WallBuild->SelectWallType(Index);
+	SetActiveTool(WallBuild);
+}
+
+void ACastlePlayerController::ToggleDemolish()
+{
+	if (ActiveTool == WallDemolish)
+	{
+		SetActiveTool(WallBuild);
+	}
+	else
+	{
+		SetActiveTool(WallDemolish);
+	}
 }
 
 void ACastlePlayerController::PlayerTick(float DeltaTime)

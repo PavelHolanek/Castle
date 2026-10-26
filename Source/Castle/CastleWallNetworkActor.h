@@ -23,7 +23,8 @@ class CASTLE_API ACastleWallNetworkActor : public AActor
 public:
 	ACastleWallNetworkActor();
 
-	void Redraw(const Castle::Core::WallNetwork& Network, ECastleWallViewMode ViewMode);
+	/** Shows Network as ViewMode says, HighlightedWall (if valid) in the highlight color. */
+	void Redraw(const Castle::Core::WallNetwork& Network, ECastleWallViewMode ViewMode, Castle::Core::WallId HighlightedWall = {});
 
 private:
 	UPROPERTY(VisibleAnywhere, Category = "Walls")

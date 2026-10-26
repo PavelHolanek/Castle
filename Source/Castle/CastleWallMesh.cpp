@@ -22,6 +22,7 @@ namespace
 	{
 		WallSlot,
 		FaultSlot,
+		HighlightSlot,
 		SlotCount,
 	};
 
@@ -145,7 +146,9 @@ namespace CastleWallMesh
 			const FloorPlan Plan = BuildFloorPlan(*Network, Settings);
 			for (const WallBody& Body : Plan.Walls)
 			{
-				Target.Slot = Faults.Walls.Contains(Body.Wall.Value) ? FaultSlot : WallSlot;
+				Target.Slot = Options.HighlightedWalls.Contains(Body.Wall.Value) ? HighlightSlot
+					: Faults.Walls.Contains(Body.Wall.Value) ? FaultSlot
+					: WallSlot;
 				AppendPrism(Target, GetBodyPolygon(Body, ArcStepRadians), Style.Height);
 			}
 			Target.Slot = WallSlot;
@@ -177,6 +180,7 @@ namespace CastleWallMesh
 		Mesh.SetNumMaterials(SlotCount);
 		SetSlotColor(Mesh, WallSlot, BaseMaterial, Style.Color);
 		SetSlotColor(Mesh, FaultSlot, BaseMaterial, FaultColor);
+		SetSlotColor(Mesh, HighlightSlot, BaseMaterial, CastleWallDrawing::HighlightColor);
 		Mesh.SetMesh(MoveTemp(Walls));
 		Mesh.SetVisibility(Network != nullptr);
 	}

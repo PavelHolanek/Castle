@@ -2,12 +2,10 @@
 
 #include "CoreMinimal.h"
 #include "CastleCore/WallPlacement.h"
-#include "Components/ActorComponent.h"
+#include "CastleToolComponent.h"
 #include "CastleWallBuildComponent.generated.h"
 
-class UEnhancedInputComponent;
 class UInputAction;
-class UInputMappingContext;
 
 USTRUCT()
 struct FCastleWallType
@@ -27,13 +25,12 @@ struct FCastleWallType
  *   Left click  - picks the start of a wall, then its end, which starts the next wall unless it joins an existing
  *                 node or wall
  *   Right click - drops the wall being placed and ends the chain
- *   1, 2, 3...  - chooses the wall type
- * A click near an existing node (within the controller's pick radius, or more around wide walls) uses that node;
- * a click on a wall splits it there. While a wall is being placed, the world shows the network with it, junctions
- * and limits included.
+ * The controller picks the wall type (keys 1, 2, 3...). A click near an existing node (within the controller's pick
+ * radius, or more around wide walls) uses that node; a click on a wall splits it there. While a wall is being placed,
+ * the world shows the network with it, junctions and limits included.
  */
 UCLASS()
-class CASTLE_API UCastleWallBuildComponent : public UActorComponent
+class CASTLE_API UCastleWallBuildComponent : public UCastleToolComponent
 {
 	GENERATED_BODY()
 
@@ -41,9 +38,6 @@ public:
 	UCastleWallBuildComponent();
 
 	DECLARE_MULTICAST_DELEGATE_OneParam(FOnWallTypeSelected, int32 /* Index */);
-
-	/** Creates the tool's controls and binds them to Input. The owning player controller calls it. */
-	void SetupInput(UEnhancedInputComponent& Input);
 
 	const TArray<FCastleWallType>& GetWallTypes() const { return WallTypes; }
 	int32 GetSelectedWallType() const { return SelectedWallType; }
@@ -56,6 +50,9 @@ public:
 
 protected:
 	virtual void BeginPlay() override;
+	virtual void CreateMappings(UInputMappingContext& Context) override;
+	virtual void BindInput(UEnhancedInputComponent& Input) override;
+	virtual void OnDeactivated() override;
 
 	UPROPERTY(EditAnywhere, Category = "Build")
 	TArray<FCastleWallType> WallTypes;
@@ -68,8 +65,6 @@ protected:
 	float SnapWidthFactor = 0.75f;
 
 private:
-	void CreateInputMappings();
-
 	void Place();
 	void CancelPlacement();
 
@@ -81,14 +76,8 @@ private:
 	int32 SelectedWallType = 1;
 
 	UPROPERTY(Transient)
-	TObjectPtr<UInputMappingContext> MappingContext;
-
-	UPROPERTY(Transient)
 	TObjectPtr<UInputAction> PlaceAction;
 
 	UPROPERTY(Transient)
 	TObjectPtr<UInputAction> CancelAction;
-
-	UPROPERTY(Transient)
-	TArray<TObjectPtr<UInputAction>> SelectTypeActions;
 };

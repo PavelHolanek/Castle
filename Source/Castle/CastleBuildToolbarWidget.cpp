@@ -1,7 +1,9 @@
 #include "CastleBuildToolbarWidget.h"
 
 #include "Blueprint/WidgetTree.h"
+#include "CastlePlayerController.h"
 #include "CastleWallBuildComponent.h"
+#include "CastleWallDemolishComponent.h"
 #include "Components/Border.h"
 #include "Components/CanvasPanel.h"
 #include "Components/CanvasPanelSlot.h"
@@ -64,61 +66,94 @@ void UCastleBuildToolbarWidget::NativeOnInitialized()
 
 void UCastleBuildToolbarWidget::NativeDestruct()
 {
-	if (UCastleWallBuildComponent* CurrentTool = Tool.Get())
-	{
-		CurrentTool->OnWallTypeSelected.Remove(SelectionHandle);
-	}
+	Unbind();
 
 	Super::NativeDestruct();
 }
 
-void UCastleBuildToolbarWidget::SetTool(UCastleWallBuildComponent* InTool)
+void UCastleBuildToolbarWidget::SetController(ACastlePlayerController* InController)
 {
-	if (UCastleWallBuildComponent* PreviousTool = Tool.Get())
-	{
-		PreviousTool->OnWallTypeSelected.Remove(SelectionHandle);
-	}
-	Tool = InTool;
+	Unbind();
+	Controller = InController;
 	ButtonBox->ClearChildren();
 	TypeButtons.Reset();
-	if (!InTool)
+	DemolishButton = nullptr;
+	if (!InController)
 	{
 		return;
 	}
 
-	const TArray<FCastleWallType>& Types = InTool->GetWallTypes();
-	for (int32 Index = 0; Index < Types.Num(); ++Index)
+	const auto AddButton = [this](int32 Index, const FString& Text, UCastleToolbarButton::FOnChosen OnChosen, const FMargin& ButtonPadding)
 	{
 		UCastleToolbarButton* Button = WidgetTree->ConstructWidget<UCastleToolbarButton>(UCastleToolbarButton::StaticClass());
-		Button->Setup(Index, UCastleToolbarButton::FOnChosen::CreateUObject(this, &UCastleBuildToolbarWidget::Choose));
+		Button->Setup(Index, MoveTemp(OnChosen));
 
 		UTextBlock* Label = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass());
-		Label->SetText(FText::FromString(FString::Printf(TEXT("%d  %s\n%.0f cm"), Index + 1, *Types[Index].Name, Types[Index].Width)));
+		Label->SetText(FText::FromString(Text));
 		Label->SetJustification(ETextJustify::Center);
 		Label->SetFontSize(14.f);
 		Button->SetContent(Label);
 
-		UHorizontalBoxSlot* ButtonSlot = ButtonBox->AddChildToHorizontalBox(Button);
-		ButtonSlot->SetPadding(FMargin(4.f, 0.f));
-		TypeButtons.Add(Button);
+		ButtonBox->AddChildToHorizontalBox(Button)->SetPadding(ButtonPadding);
+		return Button;
+	};
+
+	UCastleWallBuildComponent* Build = InController->GetWallBuild();
+	const TArray<FCastleWallType>& Types = Build->GetWallTypes();
+	for (int32 Index = 0; Index < Types.Num(); ++Index)
+	{
+		TypeButtons.Add(AddButton(Index, FString::Printf(TEXT("%d  %s\n%.0f cm"), Index + 1, *Types[Index].Name, Types[Index].Width),
+			UCastleToolbarButton::FOnChosen::CreateUObject(this, &UCastleBuildToolbarWidget::ChooseWallType), FMargin(4.f, 0.f)));
 	}
 
-	SelectionHandle = InTool->OnWallTypeSelected.AddUObject(this, &UCastleBuildToolbarWidget::Highlight);
-	Highlight(InTool->GetSelectedWallType());
+	// Set apart from the wall types.
+	DemolishButton = AddButton(INDEX_NONE, TEXT("X  Demolish"),
+		UCastleToolbarButton::FOnChosen::CreateUObject(this, &UCastleBuildToolbarWidget::ChooseDemolish), FMargin(20.f, 0.f, 4.f, 0.f));
+
+	WallTypeHandle = Build->OnWallTypeSelected.AddWeakLambda(this, [this](int32) { Refresh(); });
+	ToolHandle = InController->OnActiveToolChanged.AddWeakLambda(this, [this](UCastleToolComponent*) { Refresh(); });
+	Refresh();
 }
 
-void UCastleBuildToolbarWidget::Highlight(int32 SelectedIndex)
+void UCastleBuildToolbarWidget::Unbind()
 {
+	if (ACastlePlayerController* Previous = Controller.Get())
+	{
+		Previous->GetWallBuild()->OnWallTypeSelected.Remove(WallTypeHandle);
+		Previous->OnActiveToolChanged.Remove(ToolHandle);
+	}
+	Controller = nullptr;
+}
+
+void UCastleBuildToolbarWidget::Refresh()
+{
+	const ACastlePlayerController* Owner = Controller.Get();
+	if (!Owner)
+	{
+		return;
+	}
+
+	const UCastleWallBuildComponent* Build = Owner->GetWallBuild();
+	const bool bBuilding = Owner->GetActiveTool() == Build;
 	for (int32 Index = 0; Index < TypeButtons.Num(); ++Index)
 	{
-		TypeButtons[Index]->SetSelected(Index == SelectedIndex);
+		TypeButtons[Index]->SetSelected(bBuilding && Index == Build->GetSelectedWallType());
+	}
+	DemolishButton->SetSelected(Owner->GetActiveTool() == Owner->GetWallDemolish());
+}
+
+void UCastleBuildToolbarWidget::ChooseWallType(int32 Index)
+{
+	if (ACastlePlayerController* Owner = Controller.Get())
+	{
+		Owner->SelectWallType(Index);
 	}
 }
 
-void UCastleBuildToolbarWidget::Choose(int32 Index)
+void UCastleBuildToolbarWidget::ChooseDemolish(int32 /* Index */)
 {
-	if (UCastleWallBuildComponent* CurrentTool = Tool.Get())
+	if (ACastlePlayerController* Owner = Controller.Get())
 	{
-		CurrentTool->SelectWallType(Index);
+		Owner->SetActiveTool(Owner->GetWallDemolish());
 	}
 }

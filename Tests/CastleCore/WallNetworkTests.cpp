@@ -304,3 +304,94 @@ TEST(WallNetwork, FindWallAtOnAnArc)
 	EXPECT_FALSE(Network.FindWallAt({500.0, -560.0}));
 	EXPECT_FALSE(Network.FindWallAt({500.0, 0.0}));
 }
+
+TEST(WallNetwork, MergeUndoesASplit)
+{
+	WallNetwork Network;
+	const NodeId A = Network.AddNode({0.0, 0.0});
+	const NodeId B = Network.AddNode({1000.0, 0.0});
+	const WallId AB = Network.AddWall(A, B, 30.0, 70.0);
+	const NodeId Middle = Network.SplitWall(AB, 0.4);
+
+	EXPECT_EQ(Network.MergeWalls(Middle), AB);
+
+	EXPECT_EQ(Network.FindNode(Middle), nullptr);
+	EXPECT_EQ(Network.GetNodeCount(), 2u);
+	EXPECT_EQ(Network.GetWallCount(), 1u);
+	const Wall* Merged = Network.FindWall(AB);
+	EXPECT_EQ(Merged->NodeA, A);
+	EXPECT_EQ(Merged->NodeB, B);
+	EXPECT_EQ(Merged->WidthLeft, 30.0);
+	EXPECT_EQ(Merged->WidthRight, 70.0);
+	EXPECT_EQ(Merged->Bulge, 0.0);
+	ASSERT_EQ(Network.GetNodeWalls(B).size(), 1u);
+	EXPECT_EQ(Network.GetNodeWalls(B)[0], AB);
+}
+
+TEST(WallNetwork, MergeUndoesASplitOfAnArc)
+{
+	WallNetwork Network;
+	const WallId Arc = Network.AddWall(Network.AddNode({0.0, 0.0}), Network.AddNode({1000.0, 0.0}), 50.0, 50.0, -0.6);
+
+	EXPECT_EQ(Network.MergeWalls(Network.SplitWall(Arc, 0.3)), Arc);
+	EXPECT_NEAR(Network.FindWall(Arc)->Bulge, -0.6, 1e-12);
+}
+
+TEST(WallNetwork, MergeKeepsTheDirectionOfTheOlderWall)
+{
+	// Both walls run away from B towards A, and the older one starts at the node, so the joined wall runs from C to A.
+	// Seen that way, the widths of both are 30 to the left and 70 to the right.
+	WallNetwork Network;
+	const NodeId A = Network.AddNode({0.0, 0.0});
+	const NodeId Middle = Network.AddNode({400.0, 0.0});
+	const NodeId C = Network.AddNode({1000.0, 0.0});
+	const WallId Older = Network.AddWall(Middle, A, 30.0, 70.0);
+	Network.AddWall(C, Middle, 30.0, 70.0);
+
+	ASSERT_EQ(Network.MergeWalls(Middle), Older);
+
+	const Wall* Merged = Network.FindWall(Older);
+	EXPECT_EQ(Merged->NodeA, C);
+	EXPECT_EQ(Merged->NodeB, A);
+	EXPECT_EQ(Merged->WidthLeft, 30.0);
+	EXPECT_EQ(Merged->WidthRight, 70.0);
+}
+
+TEST(WallNetwork, MergeOnlyWallsThatContinueEachOther)
+{
+	const auto CanMerge = [](Vec2 End, double EndWidthLeft, double EndBulge)
+	{
+		WallNetwork Network;
+		const NodeId Middle = Network.AddNode({500.0, 0.0});
+		Network.AddWall(Network.AddNode({0.0, 0.0}), Middle, 50.0, 50.0);
+		Network.AddWall(Middle, Network.AddNode(End), EndWidthLeft, 50.0, EndBulge);
+		return Network.MergeWalls(Middle).IsValid();
+	};
+
+	EXPECT_TRUE(CanMerge({1000.0, 0.0}, 50.0, 0.0));
+	EXPECT_FALSE(CanMerge({500.0, 500.0}, 50.0, 0.0));
+	EXPECT_FALSE(CanMerge({1000.0, 1.0}, 50.0, 0.0));
+	EXPECT_FALSE(CanMerge({0.0, 0.0}, 50.0, 0.0));
+	EXPECT_FALSE(CanMerge({1000.0, 0.0}, 60.0, 0.0));
+	EXPECT_FALSE(CanMerge({1000.0, 0.0}, 50.0, 0.3));
+}
+
+TEST(WallNetwork, MergeNeedsExactlyTwoWallsWithDifferentFarEnds)
+{
+	// A round tower: two half circles between A and B.
+	WallNetwork Network;
+	const NodeId A = Network.AddNode({0.0, 0.0});
+	const NodeId B = Network.AddNode({400.0, 0.0});
+	Network.AddWall(A, B, 50.0, 50.0, 1.0);
+	Network.AddWall(B, A, 50.0, 50.0, 1.0);
+	EXPECT_FALSE(Network.MergeWalls(B).IsValid());
+
+	// Three walls in a row of which two would continue each other.
+	const NodeId C = Network.AddNode({1000.0, 0.0});
+	Network.AddWall(B, C, 50.0, 50.0);
+	EXPECT_FALSE(Network.MergeWalls(B).IsValid());
+
+	EXPECT_FALSE(Network.MergeWalls(C).IsValid());
+	EXPECT_FALSE(Network.MergeWalls(NodeId{}).IsValid());
+	EXPECT_EQ(Network.GetWallCount(), 3u);
+}

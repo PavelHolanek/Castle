@@ -34,21 +34,25 @@ input (UE) -> WallPlacement (core) -> WallNetwork (authoritative model) -> Junct
   core clean.
   - `Vec2.h`: vector, tolerances, angles.
   - `WallCurve`: straight line or circular arc (bulge), exact offsets, projection of a point, tessellation.
-  - `WallNetwork`: nodes and walls with stable ids. Walls meet only at shared nodes; splitting a wall, finding the wall
-    under a point.
+  - `WallNetwork`: nodes and walls with stable ids. Walls meet only at shared nodes; splitting and merging walls,
+    finding the wall under a point.
   - `WallLimits`: limits (length, width, arcs, smallest joint angle 30°).
   - `Junction`: the junction solver, gaps between neighbouring walls at a node.
   - `FloorPlan`: splits the floor area into wall bodies and node pieces.
   - `Polygon`: area, regular polygon, clipping to a convex shape.
   - `WallPlacement`: state of the build tool (preview, chaining, snapping).
+  - `WallDemolition`: removing a wall as the player does, with leftover nodes tidied up.
   - `WallOutline`: raw outlines for debugging.
 - **`Source/Castle/`**: the Unreal layer. Turns input into core calls, draws, and holds the network in the world.
   - `CastleWallSubsystem`: the world's wall network and the view mode.
   - `CastleWallNetworkActor`: draws the network in the game.
   - `CastleWallDrawing`: debug lines via `ULineBatchComponent`.
   - `CastleWallMesh`: extrudes the floor plan to 3D via `UDynamicMeshComponent`.
-  - `CastleWallBuildComponent`: the build tool on the player controller.
-  - `CastleBuildToolbarWidget`: bottom toolbar with the wall types.
+  - `CastlePlayerController`: the cursor on the ground, the tools and switching between them.
+  - `CastleToolComponent`: base of the tools; only the active one ticks and has its controls in effect.
+  - `CastleWallBuildComponent`: the build tool.
+  - `CastleWallDemolishComponent`: the demolish tool.
+  - `CastleBuildToolbarWidget`: bottom toolbar with the wall types and the demolish tool.
   - `CastleViewModeWidget`: Raw / Floor plan / Walls 3D switch, not in Shipping builds.
   - `CastleWallDebugActor`: fixed test cases whose nodes can be dragged in the editor.
   - `CastleCameraPawn`: the strategy camera.
@@ -75,6 +79,8 @@ input (UE) -> WallPlacement (core) -> WallNetwork (authoritative model) -> Junct
   - in the line views the node stays unresolved and its walls end in caps;
   - in 3D the joint turns red, clipped by a circle of 2 × the widest wall's width;
   - a wall consumed by the joints at both ends is only flagged (collisions will be handled later).
+- **Demolishing** removes walls only, never a node directly. A node left without walls goes too; two walls left at a
+  node that continue each other (in line or on one circle, same widths) join into one, unless that breaks the limits.
 - **The cursor** always points at the ground plane, even over walls. Deliberate, not a bug.
 
 ## Conventions
@@ -133,8 +139,9 @@ Done:
 - wall model, junction solver for straight walls at all angles, floor plan with node pieces;
 - limits; wall placement with preview, chaining and snapping to nodes (radius grows with the widest wall) and to
   walls, which get split (T); ending on a node or a wall ends the chain;
+- demolish tool (button or X, right click back to building) with the wall under the cursor highlighted;
 - bottom toolbar with three wall widths, view mode switch;
 - the first, debug wall type: extruded to 6 m, one color.
 
-Next candidates from the backlog: splitting crossed walls (X), arc junctions, deleting walls and undo, wall types in the
-model, wall collisions, random junction tests.
+Next candidates from the backlog: splitting crossed walls (X), undo, arc junctions, wall types in the model, wall
+collisions, random junction tests.

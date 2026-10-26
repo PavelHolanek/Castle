@@ -65,16 +65,16 @@ namespace CastleWallDrawing
 		};
 
 		TArray<FBatchedLine> Batch;
-		const auto AddLine = [&](Vec2 Start, Vec2 End, const FLinearColor& Color)
+		const auto AddLine = [&](Vec2 Start, Vec2 End, const FLinearColor& Color, float ThicknessScale = 1.f)
 		{
-			Batch.Emplace(ToWorld(Start), ToWorld(End), Color, 0.f, Options.LineThickness, DepthPriority);
+			Batch.Emplace(ToWorld(Start), ToWorld(End), Color, 0.f, ThicknessScale * Options.LineThickness, DepthPriority);
 		};
-		const auto AddCurve = [&](const WallCurve& Curve, const FLinearColor& Color)
+		const auto AddCurve = [&](const WallCurve& Curve, const FLinearColor& Color, float ThicknessScale = 1.f)
 		{
 			const std::vector<Vec2> Points = Curve.Tessellate(ArcStepRadians);
 			for (size_t Index = 1; Index < Points.size(); ++Index)
 			{
-				AddLine(Points[Index - 1], Points[Index], Color);
+				AddLine(Points[Index - 1], Points[Index], Color, ThicknessScale);
 			}
 		};
 
@@ -234,6 +234,28 @@ namespace CastleWallDrawing
 					Description += FString::Printf(TEXT(", length %.1f"), Distance(Gap.Path[0], Gap.Path[1]));
 				}
 				Report->JunctionCorners.Add(MoveTemp(Description));
+			}
+		}
+
+		// The whole wall up to its nodes, as that is what a highlight is about (e.g. what gets demolished).
+		if (!bWalls3D)
+		{
+			constexpr float HighlightThickness = 2.5f;
+			for (const uint32 Highlighted : Options.HighlightedWalls)
+			{
+				if (const std::optional<RawWallOutline> Outline = BuildRawOutline(Network, WallId{Highlighted}))
+				{
+					AddCurve(Outline->Reference, HighlightColor, HighlightThickness);
+					for (const std::optional<WallCurve>& Side : {Outline->Left, Outline->Right})
+					{
+						if (Side)
+						{
+							AddCurve(*Side, HighlightColor, HighlightThickness);
+						}
+					}
+					AddCurve(Outline->StartCap, HighlightColor, HighlightThickness);
+					AddCurve(Outline->EndCap, HighlightColor, HighlightThickness);
+				}
 			}
 		}
 

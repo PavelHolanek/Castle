@@ -43,6 +43,7 @@ add_executable(CastleCoreTests
 	JunctionTests.cpp
 	PolygonTests.cpp
 	WallCurveTests.cpp
+	WallDemolitionTests.cpp
 	WallLimitsTests.cpp
 	WallNetworkTests.cpp
 	WallOutlineTests.cpp

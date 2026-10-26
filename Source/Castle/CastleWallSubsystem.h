@@ -29,6 +29,9 @@ public:
 	void ShowPreview(const Castle::Core::WallNetwork& Preview);
 	void ClearPreview();
 
+	/** Shows the wall in the highlight color, e.g. the one the demolish tool points at. An invalid id highlights none. */
+	void SetHighlightedWall(Castle::Core::WallId Wall);
+
 	DECLARE_MULTICAST_DELEGATE_OneParam(FOnViewModeChanged, ECastleWallViewMode /* ViewMode */);
 
 	/** Fires whenever the view mode changes. */
@@ -46,6 +49,7 @@ private:
 
 	Castle::Core::WallNetwork Network;
 	bool bShowingPreview = false;
+	Castle::Core::WallId HighlightedWall;
 	/** What the player sees; shipping builds have no switch to change it. */
 	ECastleWallViewMode ViewMode = ECastleWallViewMode::Walls3D;
 

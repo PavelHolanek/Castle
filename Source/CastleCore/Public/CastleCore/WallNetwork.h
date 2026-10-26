@@ -98,6 +98,15 @@ namespace Castle::Core
 		 */
 		CASTLECORE_API NodeId SplitWall(WallId Id, double T);
 
+		/**
+		 * Joins the two walls at the node into one and removes the node, the reverse of SplitWall. The older wall (lower
+		 * id) keeps its id, data and direction and reaches to the other wall's far end; the other wall goes. Only walls
+		 * that continue each other join: both straight and in line, or both arcs of the same circle turning the same way,
+		 * with the same widths on either side and different far ends. Invalid id when the node doesn't have exactly two
+		 * walls or they don't continue each other.
+		 */
+		CASTLECORE_API WallId MergeWalls(NodeId Id);
+
 		CASTLECORE_API bool MoveNode(NodeId Id, Vec2 Position);
 		CASTLECORE_API bool SetCornerStyle(NodeId Id, ECornerStyle Style);
 		CASTLECORE_API bool RemoveWall(WallId Id);

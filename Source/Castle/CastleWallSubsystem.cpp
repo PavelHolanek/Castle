@@ -36,6 +36,21 @@ void UCastleWallSubsystem::ClearPreview()
 	}
 }
 
+void UCastleWallSubsystem::SetHighlightedWall(Castle::Core::WallId Wall)
+{
+	if (HighlightedWall == Wall)
+	{
+		return;
+	}
+	HighlightedWall = Wall;
+
+	// A preview is shown anew every frame, the network has to be redrawn here.
+	if (!bShowingPreview)
+	{
+		Draw(Network);
+	}
+}
+
 void UCastleWallSubsystem::SetViewMode(ECastleWallViewMode InViewMode)
 {
 	if (ViewMode == InViewMode)
@@ -61,6 +76,6 @@ void UCastleWallSubsystem::Draw(const Castle::Core::WallNetwork& Shown)
 {
 	if (NetworkActor)
 	{
-		NetworkActor->Redraw(Shown, ViewMode);
+		NetworkActor->Redraw(Shown, ViewMode, HighlightedWall);
 	}
 }

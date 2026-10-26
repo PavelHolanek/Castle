@@ -64,6 +64,8 @@ Remove items once done; decisions move into the code or the comments next to it.
 ### Limits (`Source/CastleCore/Public/CastleCore/WallLimits.h`)
 
 - The values are only a proposal.
+- **Several copies.** The build tool, the demolish tool and the drawing each use their own default `WallLimits`. Once
+  the limits can change (settings, game modes), keep them in one place, e.g. the wall subsystem.
 - Relations between limits aren't checked (e.g. minimum wall length against the width of neighbouring walls).
 - **The joint angle is computed twice.** `GetSmallestJointAngle` takes angles pairwise, the junctions from sorted
   directions, and a wall's direction away from a node is written out in both `WallLimits.cpp` and `Junction.cpp`.
@@ -131,12 +133,13 @@ Remove items once done; decisions move into the code or the comments next to it.
 ## Ideas
 
 - **Build tool:** splitting walls the new wall crosses (X); snapping to angles (15°, 45°, 90°); parallels,
-  perpendiculars and extensions as guide lines (`WallCurve::Project` serves lines too); deleting walls (picking with
-  `WallNetwork::FindWallAt`). Done: placement with preview, chaining, snapping to nodes and to walls, which splits them
-  (T).
+  perpendiculars and extensions as guide lines (`WallCurve::Project` serves lines too). Done: placement with preview,
+  chaining, snapping to nodes and to walls, which splits them (T).
+- **Demolish tool:** removing several walls by dragging across them or a box. Done: one wall per click.
 - **Camera:** zoom towards the cursor instead of the screen center, tilting the camera towards horizontal when zooming
   in, mouse control (rotate by dragging with the middle button, pan by dragging or at the screen edge).
-- **Undo/redo in the core:** `FScopedTransaction` in UE works only in the editor.
+- **Undo/redo in the core:** `FScopedTransaction` in UE works only in the editor. Demolishing has no undo yet, so a
+  misclick costs a wall.
 - **Corner style (sharp/beveled)** as a per-node switch in the UI.
 - **Rooms** as faces of the planar wall graph. The player gives a room a function (living quarters, smithy, kitchen…)
   and upgrades; it is a dedicated space rather than a fixed building. Basis for the economy.

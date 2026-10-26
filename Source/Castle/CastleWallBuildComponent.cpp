@@ -1,14 +1,11 @@
 #include "CastleWallBuildComponent.h"
 
 #include "CastleCoreConversion.h"
-#include "CastlePlayerController.h"
 #include "CastleWallSubsystem.h"
 #include "DrawDebugHelpers.h"
 #include "Engine/Engine.h"
-#include "Engine/LocalPlayer.h"
 #include "Engine/World.h"
 #include "EnhancedInputComponent.h"
-#include "EnhancedInputSubsystems.h"
 #include "InputAction.h"
 #include "InputMappingContext.h"
 
@@ -25,8 +22,6 @@ namespace
 
 UCastleWallBuildComponent::UCastleWallBuildComponent()
 {
-	PrimaryComponentTick.bCanEverTick = true;
-
 	WallTypes = {
 		MakeWallType(TEXT("Thin wall"), 60.f),
 		MakeWallType(TEXT("Wall"), 150.f),
@@ -42,46 +37,24 @@ void UCastleWallBuildComponent::BeginPlay()
 	SelectWallType(SelectedWallType);
 }
 
-void UCastleWallBuildComponent::SetupInput(UEnhancedInputComponent& Input)
+void UCastleWallBuildComponent::CreateMappings(UInputMappingContext& Context)
 {
-	if (!MappingContext)
-	{
-		CreateInputMappings();
-	}
-
-	if (const APlayerController* Controller = GetOwner<APlayerController>())
-	{
-		if (UEnhancedInputLocalPlayerSubsystem* Subsystem = ULocalPlayer::GetSubsystem<UEnhancedInputLocalPlayerSubsystem>(Controller->GetLocalPlayer()))
-		{
-			Subsystem->AddMappingContext(MappingContext, 1);
-		}
-	}
-
-	Input.BindAction(PlaceAction, ETriggerEvent::Started, this, &UCastleWallBuildComponent::Place);
-	Input.BindAction(CancelAction, ETriggerEvent::Started, this, &UCastleWallBuildComponent::CancelPlacement);
-	for (int32 Index = 0; Index < SelectTypeActions.Num(); ++Index)
-	{
-		Input.BindAction(SelectTypeActions[Index], ETriggerEvent::Started, this, &UCastleWallBuildComponent::SelectWallType, Index);
-	}
-}
-
-void UCastleWallBuildComponent::CreateInputMappings()
-{
-	MappingContext = NewObject<UInputMappingContext>(this, TEXT("IMC_WallBuild"));
-
 	PlaceAction = NewObject<UInputAction>(this, TEXT("IA_PlaceWall"));
-	MappingContext->MapKey(PlaceAction, EKeys::LeftMouseButton);
+	Context.MapKey(PlaceAction, EKeys::LeftMouseButton);
 
 	CancelAction = NewObject<UInputAction>(this, TEXT("IA_CancelWall"));
-	MappingContext->MapKey(CancelAction, EKeys::RightMouseButton);
+	Context.MapKey(CancelAction, EKeys::RightMouseButton);
+}
 
-	const FKey TypeKeys[] = {EKeys::One, EKeys::Two, EKeys::Three, EKeys::Four, EKeys::Five, EKeys::Six, EKeys::Seven, EKeys::Eight, EKeys::Nine};
-	for (int32 Index = 0; Index < FMath::Min(WallTypes.Num(), static_cast<int32>(UE_ARRAY_COUNT(TypeKeys))); ++Index)
-	{
-		UInputAction* Action = NewObject<UInputAction>(this, FName(TEXT("IA_SelectWallType"), Index + 1));
-		MappingContext->MapKey(Action, TypeKeys[Index]);
-		SelectTypeActions.Add(Action);
-	}
+void UCastleWallBuildComponent::BindInput(UEnhancedInputComponent& Input)
+{
+	Input.BindAction(PlaceAction, ETriggerEvent::Started, this, &UCastleWallBuildComponent::Place);
+	Input.BindAction(CancelAction, ETriggerEvent::Started, this, &UCastleWallBuildComponent::CancelPlacement);
+}
+
+void UCastleWallBuildComponent::OnDeactivated()
+{
+	CancelPlacement();
 }
 
 void UCastleWallBuildComponent::SelectWallType(int32 Index)
@@ -99,11 +72,10 @@ void UCastleWallBuildComponent::TickComponent(float DeltaTime, ELevelTick TickTy
 {
 	Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
 
-	const ACastlePlayerController* Controller = GetOwner<ACastlePlayerController>();
-	const UCastleWallSubsystem* Walls = GetWorld()->GetSubsystem<UCastleWallSubsystem>();
+	const UCastleWallSubsystem* Walls = GetWalls();
 	FVector Cursor;
 	double PickRadius = 0.0;
-	if (!Controller || !Walls || !Controller->GetCursorOnGround(Cursor, PickRadius))
+	if (!Walls || !GetCursorOnGround(Cursor, PickRadius))
 	{
 		return;
 	}
@@ -133,11 +105,10 @@ void UCastleWallBuildComponent::TickComponent(float DeltaTime, ELevelTick TickTy
 
 void UCastleWallBuildComponent::Place()
 {
-	const ACastlePlayerController* Controller = GetOwner<ACastlePlayerController>();
-	UCastleWallSubsystem* Walls = GetWorld()->GetSubsystem<UCastleWallSubsystem>();
+	UCastleWallSubsystem* Walls = GetWalls();
 	FVector Cursor;
 	double PickRadius = 0.0;
-	if (!Controller || !Walls || !Controller->GetCursorOnGround(Cursor, PickRadius))
+	if (!Walls || !GetCursorOnGround(Cursor, PickRadius))
 	{
 		return;
 	}
@@ -157,7 +128,7 @@ void UCastleWallBuildComponent::CancelPlacement()
 
 void UCastleWallBuildComponent::UpdatePreview()
 {
-	UCastleWallSubsystem* Walls = GetWorld()->GetSubsystem<UCastleWallSubsystem>();
+	UCastleWallSubsystem* Walls = GetWalls();
 	if (!Walls)
 	{
 		return;
@@ -181,10 +152,12 @@ void UCastleWallBuildComponent::ShowInfo() const
 	}
 
 	const FCastleWallType& Type = WallTypes[SelectedWallType];
-	FString Info = FString::Printf(TEXT("Wall type %d: %s, %.0f cm (keys 1-%d)"), SelectedWallType + 1, *Type.Name, Type.Width, SelectTypeActions.Num());
+	FString Info = FString::Printf(TEXT("Wall type %d: %s, %.0f cm (keys 1-%d)"), SelectedWallType + 1, *Type.Name, Type.Width,
+		FMath::Min(WallTypes.Num(), 9));
 	Info += Placement.GetState() == Castle::Core::WallPlacement::EState::PickingStart
 		? TEXT("\nLeft click: start a wall")
 		: TEXT("\nLeft click: place, right click: stop");
+	Info += TEXT("\nX: demolish");
 	FColor Color = FColor::White;
 
 	if (const std::optional<Castle::Core::WallNetwork>& Preview = Placement.GetPreview())

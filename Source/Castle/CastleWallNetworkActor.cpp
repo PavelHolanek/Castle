@@ -21,10 +21,14 @@ ACastleWallNetworkActor::ACastleWallNetworkActor()
 	BaseMaterial = Material.Object;
 }
 
-void ACastleWallNetworkActor::Redraw(const Castle::Core::WallNetwork& Network, ECastleWallViewMode ViewMode)
+void ACastleWallNetworkActor::Redraw(const Castle::Core::WallNetwork& Network, ECastleWallViewMode ViewMode, Castle::Core::WallId HighlightedWall)
 {
 	FCastleWallDrawOptions Options;
 	Options.ViewMode = ViewMode;
+	if (HighlightedWall.IsValid())
+	{
+		Options.HighlightedWalls.Add(HighlightedWall.Value);
+	}
 	CastleWallDrawing::DrawNetwork(*Lines, Network, FTransform::Identity, Options);
 
 	CastleWallMesh::ShowWalls(*WallMesh, ViewMode == ECastleWallViewMode::Walls3D ? &Network : nullptr, Options, Style, BaseMaterial);
